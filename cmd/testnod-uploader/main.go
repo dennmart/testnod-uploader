@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"testnod-uploader/internal/upload"
 	"testnod-uploader/internal/validation"
 )
 
@@ -14,6 +16,9 @@ func main() {
 	var (
 		token          = flag.String("token", "", "TestNod project token")
 		validateFile   = flag.Bool("validate", false, "Checks if the file is a valid JUnit XML file, returns without uploading to TestNod")
+		branch         = flag.String("branch", "", "The branch name used for this test run")
+		commitSHA      = flag.String("commit-sha", "", "The commit SHA used for this test run")
+		runURL         = flag.String("run-url", "", "The URL to the CI/CD run")
 		ignoreFailures = flag.Bool("ignore-failures", false, "Always return an exit code of 0 even if there are errors")
 		uploadURL      = flag.String("upload-url", "", "Specify a custom upload URL to upload the JUnit XML file to TestNod")
 		tags           multiStringFlag
@@ -42,37 +47,53 @@ func main() {
 		err := validation.ValidateJUnitXMLFile(filePath)
 		if err != nil {
 			fmt.Println(err)
-			if *ignoreFailures {
-				os.Exit(0)
-			} else {
-				os.Exit(1)
-			}
+			exitBasedOnIgnoreFailures(*ignoreFailures)
 		}
 
-		fmt.Printf("%s is a valid JUnit XML file!", filePath)
+		fmt.Printf("%s is a valid JUnit XML file!\n", filePath)
 		os.Exit(0)
 	}
 
 	if *token == "" {
 		fmt.Println("No token specified")
-		if *ignoreFailures {
-			os.Exit(0)
-		} else {
-			os.Exit(1)
-		}
+		exitBasedOnIgnoreFailures(*ignoreFailures)
 	}
 
-	testNodUploadURL := "https://testnod.com/upload"
+	testNodUploadURL := "https://testnod.com/test_runs/upload"
 	if *uploadURL != "" {
 		testNodUploadURL = *uploadURL
 	}
 
-	fmt.Printf("Uploading %s to %s using project token %s...\n", filePath, testNodUploadURL, *token)
+	fmt.Printf("%s is a valid JUnit XML file. Uploading file for processing on TestNod...\n", filePath)
 
-	if len(tags) > 0 {
-		fmt.Println("Tags:", tags)
+	uploadRequest := upload.UploadRequest{
+		TestRun: upload.TestRun{
+			Metadata: upload.TestRunMetadata{
+				Branch:    *branch,
+				CommitSHA: *commitSHA,
+				RunURL:    *runURL,
+				Tags:      tags,
+			},
+		},
 	}
-	// TODO: Upload file
+
+	statusCode, response, err := upload.UploadJUnitXmlFile(filePath, testNodUploadURL, *token, uploadRequest)
+
+	if err != nil {
+		if statusCode == 0 {
+			fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
+			exitBasedOnIgnoreFailures(*ignoreFailures)
+		} else {
+			fmt.Printf("TestNod returned an error: %s\n", response)
+			exitBasedOnIgnoreFailures(*ignoreFailures)
+		}
+	}
+
+	// TODO: Print the URL to the test run on TestNod on successful upload
+	fmt.Println("statusCode", statusCode)
+	fmt.Println("response", response)
+	fmt.Println("err", err)
+	os.Exit(0)
 }
 
 func (m *multiStringFlag) String() string {
@@ -82,4 +103,12 @@ func (m *multiStringFlag) String() string {
 func (m *multiStringFlag) Set(value string) error {
 	*m = append(*m, value)
 	return nil
+}
+
+func exitBasedOnIgnoreFailures(ignoreFailures bool) {
+	if ignoreFailures {
+		os.Exit(0)
+	} else {
+		os.Exit(1)
+	}
 }
