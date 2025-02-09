@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"testnod-uploader/internal/validation"
 )
 
 type multiStringFlag []string
@@ -37,7 +38,18 @@ func main() {
 
 	if *validateFile {
 		fmt.Println("Validating file:", filePath)
-		// TODO: Validate file
+
+		err := validation.ValidateJUnitXMLFile(filePath)
+		if err != nil {
+			fmt.Println(err)
+			if *ignoreFailures {
+				os.Exit(0)
+			} else {
+				os.Exit(1)
+			}
+		}
+
+		fmt.Printf("%s is a valid JUnit XML file!", filePath)
 		os.Exit(0)
 	}
 
