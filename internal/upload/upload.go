@@ -82,7 +82,15 @@ func UploadJUnitXmlFile(filePath string, uploadURL string, projectToken string, 
 		return 0, "", fmt.Errorf("failed to create upload request: %w", err)
 	}
 
-	uploadReq.Header.Set("Content-Type", "application/xml")
+	// Need to get the file size to set the Content-Length header,
+	// otherwise the server will reject the request since Go's http client
+	// will use Transfer-Encoding: chunked without a Content-Length header.
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to stat file: %w", err)
+	}
+
+	uploadReq.ContentLength = fileInfo.Size()
 
 	uploadResp, err := client.Do(uploadReq)
 	if err != nil {
@@ -91,7 +99,7 @@ func UploadJUnitXmlFile(filePath string, uploadURL string, projectToken string, 
 	defer uploadResp.Body.Close()
 
 	if uploadResp.StatusCode != http.StatusOK {
-		return uploadResp.StatusCode, "", fmt.Errorf("failed to upload file, status: %s", uploadResp.Status)
+		return uploadResp.StatusCode, "", fmt.Errorf("failed to upload file")
 	}
 
 	return resp.StatusCode, successfulServerResponse.TestRunURL, nil
