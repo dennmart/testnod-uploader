@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 type UploadRequest struct {
@@ -29,6 +30,7 @@ type FailedServerResponse struct {
 type SuccessfulServerResponse struct {
 	ID           int    `json:"id"`
 	Project      string `json:"project"`
+	TestRunURL   string `json:"test_run_url"`
 	PresignedURL string `json:"presigned_url"`
 }
 
@@ -37,7 +39,6 @@ func UploadJUnitXmlFile(filePath string, uploadURL string, projectToken string, 
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to marshal request body: %w", err)
 	}
-	fmt.Println("requestBodyBytes", string(requestBodyBytes))
 
 	req, err := http.NewRequest("POST", uploadURL, bytes.NewBuffer(requestBodyBytes))
 	if err != nil {
@@ -61,7 +62,7 @@ func UploadJUnitXmlFile(filePath string, uploadURL string, projectToken string, 
 			return 0, "", fmt.Errorf("failed to decode response body: %w", err)
 		}
 
-		return resp.StatusCode, failedServerResponse.ErrorMsg, fmt.Errorf("received non-OK response: %s", resp.Status)
+		return resp.StatusCode, "", fmt.Errorf("received non-OK response: %s", failedServerResponse.ErrorMsg)
 	}
 	// TODO: Handle other potential errors
 
@@ -70,6 +71,28 @@ func UploadJUnitXmlFile(filePath string, uploadURL string, projectToken string, 
 		return 0, "", fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	// TODO: Do upload using presigned URL
-	return resp.StatusCode, successfulServerResponse.PresignedURL, nil
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	uploadReq, err := http.NewRequest("PUT", successfulServerResponse.PresignedURL, file)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to create upload request: %w", err)
+	}
+
+	uploadReq.Header.Set("Content-Type", "application/xml")
+
+	uploadResp, err := client.Do(uploadReq)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to upload file: %w", err)
+	}
+	defer uploadResp.Body.Close()
+
+	if uploadResp.StatusCode != http.StatusOK {
+		return uploadResp.StatusCode, "", fmt.Errorf("failed to upload file, status: %s", uploadResp.Status)
+	}
+
+	return resp.StatusCode, successfulServerResponse.TestRunURL, nil
 }

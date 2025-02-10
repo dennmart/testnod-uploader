@@ -77,22 +77,19 @@ func main() {
 		},
 	}
 
-	statusCode, response, err := upload.UploadJUnitXmlFile(filePath, testNodUploadURL, *token, uploadRequest)
+	statusCode, testRunUrl, err := upload.UploadJUnitXmlFile(filePath, testNodUploadURL, *token, uploadRequest)
 
 	if err != nil {
 		if statusCode == 0 {
 			fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
 			exitBasedOnIgnoreFailures(*ignoreFailures)
 		} else {
-			fmt.Printf("TestNod returned an error: %s\n", response)
+			fmt.Printf("TestNod returned an error: %s\n", err)
 			exitBasedOnIgnoreFailures(*ignoreFailures)
 		}
 	}
 
-	// TODO: Print the URL to the test run on TestNod on successful upload
-	fmt.Println("statusCode", statusCode)
-	fmt.Println("response", response)
-	fmt.Println("err", err)
+	fmt.Printf("Test run uploaded successfully! TestNod will now process your test run. You can follow its progress at %s\n", testRunUrl)
 	os.Exit(0)
 }
 
