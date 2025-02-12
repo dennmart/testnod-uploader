@@ -91,6 +91,7 @@ func UploadJUnitXmlFile(filePath string, uploadURL string, projectToken string, 
 	}
 
 	uploadReq.ContentLength = fileInfo.Size()
+	uploadReq.Header.Set("Content-Type", "application/xml")
 
 	uploadResp, err := client.Do(uploadReq)
 	if err != nil {
