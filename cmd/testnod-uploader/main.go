@@ -10,7 +10,7 @@ import (
 	"testnod-uploader/internal/validation"
 )
 
-type multiStringFlag []string
+type uploadTagsFlag []upload.Tags
 
 func main() {
 	var (
@@ -21,7 +21,7 @@ func main() {
 		runURL         = flag.String("run-url", "", "The URL to the CI/CD run")
 		ignoreFailures = flag.Bool("ignore-failures", false, "Always return an exit code of 0 even if there are errors")
 		uploadURL      = flag.String("upload-url", "", "Specify a custom upload URL to upload the JUnit XML file to TestNod")
-		tags           multiStringFlag
+		tags           uploadTagsFlag
 	)
 
 	flag.Var(&tags, "tag", "Add a tag to this test run (can be repeated)")
@@ -67,12 +67,12 @@ func main() {
 	fmt.Printf("%s is a valid JUnit XML file. Uploading file for processing on TestNod...\n", filePath)
 
 	uploadRequest := upload.UploadRequest{
+		Tags: tags,
 		TestRun: upload.TestRun{
 			Metadata: upload.TestRunMetadata{
 				Branch:    *branch,
 				CommitSHA: *commitSHA,
 				RunURL:    *runURL,
-				Tags:      tags,
 			},
 		},
 	}
@@ -93,12 +93,16 @@ func main() {
 	os.Exit(0)
 }
 
-func (m *multiStringFlag) String() string {
-	return strings.Join(*m, ", ")
+func (m *uploadTagsFlag) String() string {
+	var values []string
+	for _, tag := range *m {
+		values = append(values, tag.Value)
+	}
+	return strings.Join(values, ",")
 }
 
-func (m *multiStringFlag) Set(value string) error {
-	*m = append(*m, value)
+func (m *uploadTagsFlag) Set(value string) error {
+	*m = append(*m, upload.Tags{Value: value})
 	return nil
 }
 

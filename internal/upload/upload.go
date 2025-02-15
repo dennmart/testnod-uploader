@@ -9,6 +9,7 @@ import (
 )
 
 type UploadRequest struct {
+	Tags    []Tags  `json:"tags"`
 	TestRun TestRun `json:"test_run"`
 }
 
@@ -16,11 +17,14 @@ type TestRun struct {
 	Metadata TestRunMetadata `json:"metadata"`
 }
 
+type Tags struct {
+	Value string `json:"value"`
+}
+
 type TestRunMetadata struct {
-	Branch    string   `json:"branch"`
-	CommitSHA string   `json:"commit_sha"`
-	RunURL    string   `json:"run_url"`
-	Tags      []string `json:"tags"`
+	Branch    string `json:"branch"`
+	CommitSHA string `json:"commit_sha"`
+	RunURL    string `json:"run_url"`
 }
 
 type FailedServerResponse struct {
