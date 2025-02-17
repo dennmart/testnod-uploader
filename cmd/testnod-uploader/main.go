@@ -6,11 +6,12 @@ import (
 	"os"
 	"strings"
 
+	"testnod-uploader/internal/testnod"
 	"testnod-uploader/internal/upload"
 	"testnod-uploader/internal/validation"
 )
 
-type uploadTagsFlag []upload.Tags
+type uploadTagsFlag []testnod.Tags
 
 func main() {
 	var (
@@ -31,12 +32,7 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		fmt.Println("No file specified")
-
-		if *ignoreFailures {
-			os.Exit(0)
-		} else {
-			os.Exit(1)
-		}
+		exitBasedOnIgnoreFailures(*ignoreFailures)
 	}
 
 	filePath := args[0]
@@ -64,12 +60,12 @@ func main() {
 		testNodUploadURL = *uploadURL
 	}
 
-	fmt.Printf("%s is a valid JUnit XML file. Uploading file for processing on TestNod...\n", filePath)
+	fmt.Printf("%s is a valid JUnit XML file. Creating test run...\n", filePath)
 
-	uploadRequest := upload.UploadRequest{
+	uploadRequest := testnod.CreateTestRunRequest{
 		Tags: tags,
-		TestRun: upload.TestRun{
-			Metadata: upload.TestRunMetadata{
+		TestRun: testnod.TestRun{
+			Metadata: testnod.TestRunMetadata{
 				Branch:    *branch,
 				CommitSHA: *commitSHA,
 				RunURL:    *runURL,
@@ -77,19 +73,26 @@ func main() {
 		},
 	}
 
-	statusCode, testRunUrl, err := upload.UploadJUnitXmlFile(filePath, testNodUploadURL, *token, uploadRequest)
-
+	statusCode, serverResponse, err := testnod.CreateTestRun(testNodUploadURL, *token, uploadRequest)
 	if err != nil {
 		if statusCode == 0 {
-			fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
+			fmt.Println("There was an error creating the test run. We've been notified and will look into it. Sorry for the inconvenience.")
 			exitBasedOnIgnoreFailures(*ignoreFailures)
 		} else {
-			fmt.Printf("TestNod returned an error: %s\n", err)
+			fmt.Printf("TestNod returned an error when attempting to create the test run: %s\n", err)
 			exitBasedOnIgnoreFailures(*ignoreFailures)
 		}
 	}
 
-	fmt.Printf("Test run uploaded successfully! TestNod will now process your test run. You can follow its progress at %s\n", testRunUrl)
+	fmt.Println("Created test run, uploading JUnit XML file...")
+	_, err = upload.UploadJUnitXmlFile(filePath, serverResponse.PresignedURL)
+
+	if err != nil {
+		fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
+		exitBasedOnIgnoreFailures(*ignoreFailures)
+	}
+
+	fmt.Printf("Test run uploaded successfully! TestNod will now process your test run. You can follow its progress at %s\n", serverResponse.TestRunURL)
 	os.Exit(0)
 }
 
@@ -102,7 +105,7 @@ func (m *uploadTagsFlag) String() string {
 }
 
 func (m *uploadTagsFlag) Set(value string) error {
-	*m = append(*m, upload.Tags{Value: value})
+	*m = append(*m, testnod.Tags{Value: value})
 	return nil
 }
 
