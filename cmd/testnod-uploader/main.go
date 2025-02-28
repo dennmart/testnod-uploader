@@ -55,7 +55,7 @@ func main() {
 		exitBasedOnIgnoreFailures(*ignoreFailures)
 	}
 
-	testNodUploadURL := "https://testnod.com/test_runs/upload"
+	testNodUploadURL := "https://testnod.com/platform/test_runs/upload"
 	if *uploadURL != "" {
 		testNodUploadURL = *uploadURL
 	}
