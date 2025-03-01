@@ -73,15 +73,10 @@ func main() {
 		},
 	}
 
-	statusCode, serverResponse, err := testnod.CreateTestRun(testNodUploadURL, *token, uploadRequest)
+	serverResponse, err := testnod.CreateTestRun(testNodUploadURL, *token, uploadRequest)
 	if err != nil {
-		if statusCode == 0 {
-			fmt.Println("There was an error creating the test run. We've been notified and will look into it. Sorry for the inconvenience.")
-			exitBasedOnIgnoreFailures(*ignoreFailures)
-		} else {
-			fmt.Printf("TestNod returned an error when attempting to create the test run: %s\n", err)
-			exitBasedOnIgnoreFailures(*ignoreFailures)
-		}
+		fmt.Println("There was an error creating the test run on TestNod.")
+		exitBasedOnIgnoreFailures(*ignoreFailures)
 	}
 
 	fmt.Println("Created test run, uploading JUnit XML file...")
