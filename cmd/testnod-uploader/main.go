@@ -80,7 +80,7 @@ func main() {
 	}
 
 	fmt.Println("Created test run, uploading JUnit XML file...")
-	_, err = upload.UploadJUnitXmlFile(filePath, serverResponse.PresignedURL)
+	err = upload.UploadJUnitXmlFile(filePath, serverResponse.PresignedURL)
 
 	if err != nil {
 		fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")

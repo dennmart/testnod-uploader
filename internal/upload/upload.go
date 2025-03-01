@@ -4,41 +4,57 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/avast/retry-go/v4"
 )
 
-func UploadJUnitXmlFile(filePath string, uploadURL string) (int, error) {
+func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to open file: %w", err)
+		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
-	uploadReq, err := http.NewRequest("PUT", uploadURL, file)
+	err = retry.Do(
+		func() error {
+			req, err := http.NewRequest("PUT", uploadURL, file)
+			if err != nil {
+				return fmt.Errorf("failed to create upload request: %w", err)
+			}
+
+			// Need to get the file size to set the Content-Length header,
+			// otherwise the server will reject the request since Go's http client
+			// will use Transfer-Encoding: chunked without a Content-Length header.
+			fileInfo, err := file.Stat()
+			if err != nil {
+				return fmt.Errorf("failed to stat file: %w", err)
+			}
+
+			req.ContentLength = fileInfo.Size()
+			req.Header.Set("Content-Type", "application/xml")
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to upload file: %w", err)
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				resp.Body.Close()
+				return fmt.Errorf("failed to upload file")
+			}
+
+			resp.Body.Close()
+			return nil
+		},
+		retry.Delay(1000),
+		retry.Attempts(3),
+		retry.LastErrorOnly(true),
+	)
+
 	if err != nil {
-		return 0, fmt.Errorf("failed to create upload request: %w", err)
+		return err
 	}
 
-	// Need to get the file size to set the Content-Length header,
-	// otherwise the server will reject the request since Go's http client
-	// will use Transfer-Encoding: chunked without a Content-Length header.
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return 0, fmt.Errorf("failed to stat file: %w", err)
-	}
-
-	uploadReq.ContentLength = fileInfo.Size()
-	uploadReq.Header.Set("Content-Type", "application/xml")
-
-	client := &http.Client{}
-	uploadResp, err := client.Do(uploadReq)
-	if err != nil {
-		return 0, fmt.Errorf("failed to upload file: %w", err)
-	}
-	defer uploadResp.Body.Close()
-
-	if uploadResp.StatusCode != http.StatusOK {
-		return uploadResp.StatusCode, fmt.Errorf("failed to upload file")
-	}
-
-	return uploadResp.StatusCode, nil
+	return nil
 }
