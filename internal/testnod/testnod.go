@@ -80,11 +80,11 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 		}),
 	)
 
-	defer resp.Body.Close()
-
 	if err != nil {
 		return SuccessfulServerResponse{}, err
 	}
+
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
 		var failedServerResponse FailedServerResponse
