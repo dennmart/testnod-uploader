@@ -26,6 +26,7 @@ type TestRunMetadata struct {
 	Branch    string `json:"branch"`
 	CommitSHA string `json:"commit_sha"`
 	RunURL    string `json:"run_url"`
+	BuildID   string `json:"build_id"`
 }
 
 type SuccessfulServerResponse struct {

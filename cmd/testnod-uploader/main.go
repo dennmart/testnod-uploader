@@ -20,6 +20,7 @@ func main() {
 		branch         = flag.String("branch", "", "The branch name used for this test run")
 		commitSHA      = flag.String("commit-sha", "", "The commit SHA used for this test run")
 		runURL         = flag.String("run-url", "", "The URL to the CI/CD run")
+		buildID        = flag.String("build-id", "", "The build identifier for the CI/CD run")
 		ignoreFailures = flag.Bool("ignore-failures", false, "Always return an exit code of 0 even if there are errors")
 		uploadURL      = flag.String("upload-url", "", "Specify a custom upload URL to upload the JUnit XML file to TestNod")
 		tags           uploadTagsFlag
@@ -69,6 +70,7 @@ func main() {
 				Branch:    *branch,
 				CommitSHA: *commitSHA,
 				RunURL:    *runURL,
+				BuildID:   *buildID,
 			},
 		},
 	}
