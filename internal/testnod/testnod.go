@@ -10,7 +10,7 @@ import (
 )
 
 type CreateTestRunRequest struct {
-	Tags    []Tags  `json:"tags"`
+	Tags    []Tag   `json:"tags"`
 	TestRun TestRun `json:"test_run"`
 }
 
@@ -18,7 +18,7 @@ type TestRun struct {
 	Metadata TestRunMetadata `json:"metadata"`
 }
 
-type Tags struct {
+type Tag struct {
 	Value string `json:"value"`
 }
 

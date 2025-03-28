@@ -11,7 +11,7 @@ import (
 	"testnod-uploader/internal/validation"
 )
 
-type uploadTagsFlag []testnod.Tags
+type uploadTagsFlag []testnod.Tag
 
 func main() {
 	var (
@@ -102,7 +102,7 @@ func (m *uploadTagsFlag) String() string {
 }
 
 func (m *uploadTagsFlag) Set(value string) error {
-	*m = append(*m, testnod.Tags{Value: value})
+	*m = append(*m, testnod.Tag{Value: value})
 	return nil
 }
 
