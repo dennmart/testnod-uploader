@@ -17,84 +17,113 @@ const (
 	defaultUploadURL = "https://testnod.com/integrations/test_runs/upload"
 )
 
+type Config struct {
+	Token          string
+	ValidateFile   bool
+	Branch         string
+	CommitSHA      string
+	RunURL         string
+	BuildID        string
+	IgnoreFailures bool
+	UploadURL      string
+	Tags           uploadTagsFlag
+	FilePath       string
+}
+
 func main() {
-	var (
-		token          = flag.String("token", "", "TestNod project token")
-		validateFile   = flag.Bool("validate", false, "Checks if the file is a valid JUnit XML file, returns without uploading to TestNod")
-		branch         = flag.String("branch", "", "The branch name used for this test run")
-		commitSHA      = flag.String("commit-sha", "", "The commit SHA used for this test run")
-		runURL         = flag.String("run-url", "", "The URL to the CI/CD run")
-		buildID        = flag.String("build-id", "", "The build identifier for the CI/CD run")
-		ignoreFailures = flag.Bool("ignore-failures", false, "Always return an exit code of 0 even if there are errors")
-		uploadURL      = flag.String("upload-url", "", "Specify a custom upload URL to upload the JUnit XML file to TestNod")
-		tags           uploadTagsFlag
-	)
+	config, err := parseFlags()
+	if err != nil {
+		fmt.Println(err)
+		exitBasedOnIgnoreFailures(config.IgnoreFailures)
+	}
+
+	if config.ValidateFile {
+		validateOnly(config)
+		return
+	}
+
+	uploadToTestNod(config)
+}
+
+func parseFlags() (Config, error) {
+	var config Config
+	var tags uploadTagsFlag
+
+	flag.StringVar(&config.Token, "token", "", "TestNod project token")
+	flag.BoolVar(&config.ValidateFile, "validate", false, "Checks if the file is a valid JUnit XML file, returns without uploading to TestNod")
+	flag.StringVar(&config.Branch, "branch", "", "The branch name used for this test run")
+	flag.StringVar(&config.CommitSHA, "commit-sha", "", "The commit SHA used for this test run")
+	flag.StringVar(&config.RunURL, "run-url", "", "The URL to the CI/CD run")
+	flag.StringVar(&config.BuildID, "build-id", "", "The build identifier for the CI/CD run")
+	flag.BoolVar(&config.IgnoreFailures, "ignore-failures", false, "Always return an exit code of 0 even if there are errors")
+	flag.StringVar(&config.UploadURL, "upload-url", "", "Specify a custom upload URL to upload the JUnit XML file to TestNod")
 
 	flag.Var(&tags, "tag", "Add a tag to this test run (can be repeated)")
 
 	flag.Parse()
+	config.Tags = tags
 
 	args := flag.Args()
 	if len(args) == 0 {
-		fmt.Println("No file specified")
-		exitBasedOnIgnoreFailures(*ignoreFailures)
+		return config, fmt.Errorf("no file specified")
 	}
 
-	filePath := args[0]
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		fmt.Printf("File not found: %s\n", filePath)
-		exitBasedOnIgnoreFailures(*ignoreFailures)
+	config.FilePath = args[0]
+	if _, err := os.Stat(config.FilePath); os.IsNotExist(err) {
+		return config, fmt.Errorf("file not found: %s", config.FilePath)
 	}
 
-	if *validateFile {
-		fmt.Println("Validating file:", filePath)
-
-		err := validation.ValidateJUnitXMLFile(filePath)
-		if err != nil {
-			fmt.Println(err)
-			exitBasedOnIgnoreFailures(*ignoreFailures)
-		}
-
-		fmt.Printf("%s is a valid JUnit XML file!\n", filePath)
-		os.Exit(0)
+	if config.UploadURL == "" {
+		config.UploadURL = defaultUploadURL
 	}
 
-	if *token == "" {
-		fmt.Println("No token specified")
-		exitBasedOnIgnoreFailures(*ignoreFailures)
+	if !config.ValidateFile && config.Token == "" {
+		return config, fmt.Errorf("no token specified")
 	}
 
-	testNodUploadURL := defaultUploadURL
-	if *uploadURL != "" {
-		testNodUploadURL = *uploadURL
+	return config, nil
+}
+
+func validateOnly(config Config) {
+	fmt.Println("Validating file:", config.FilePath)
+
+	err := validation.ValidateJUnitXMLFile(config.FilePath)
+	if err != nil {
+		fmt.Println(err)
+		exitBasedOnIgnoreFailures(config.IgnoreFailures)
 	}
 
-	fmt.Printf("%s is a valid JUnit XML file. Creating test run...\n", filePath)
+	fmt.Printf("%s is a valid JUnit XML file!\n", config.FilePath)
+	os.Exit(0)
+}
+
+func uploadToTestNod(config Config) {
+	fmt.Printf("%s is a valid JUnit XML file. Creating test run...\n", config.FilePath)
 
 	uploadRequest := testnod.CreateTestRunRequest{
-		Tags: tags,
+		Tags: config.Tags,
 		TestRun: testnod.TestRun{
 			Metadata: testnod.TestRunMetadata{
-				Branch:    *branch,
-				CommitSHA: *commitSHA,
-				RunURL:    *runURL,
-				BuildID:   *buildID,
+				Branch:    config.Branch,
+				CommitSHA: config.CommitSHA,
+				RunURL:    config.RunURL,
+				BuildID:   config.BuildID,
 			},
 		},
 	}
 
-	serverResponse, err := testnod.CreateTestRun(testNodUploadURL, *token, uploadRequest)
+	serverResponse, err := testnod.CreateTestRun(config.UploadURL, config.Token, uploadRequest)
 	if err != nil {
 		fmt.Printf("Error creating test run on TestNod: %v\n", err)
-		exitBasedOnIgnoreFailures(*ignoreFailures)
+		exitBasedOnIgnoreFailures(config.IgnoreFailures)
 	}
 
 	fmt.Println("Created test run, uploading JUnit XML file...")
-	err = upload.UploadJUnitXmlFile(filePath, serverResponse.PresignedURL)
+	err = upload.UploadJUnitXmlFile(config.FilePath, serverResponse.PresignedURL)
 
 	if err != nil {
 		fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
-		exitBasedOnIgnoreFailures(*ignoreFailures)
+		exitBasedOnIgnoreFailures(config.IgnoreFailures)
 	}
 
 	fmt.Printf("Test run uploaded successfully! TestNod will now process your test run. You can follow its progress at %s\n", serverResponse.TestRunURL)
