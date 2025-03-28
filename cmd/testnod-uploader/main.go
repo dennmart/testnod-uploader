@@ -13,6 +13,10 @@ import (
 
 type uploadTagsFlag []testnod.Tag
 
+const (
+	defaultUploadURL = "https://testnod.com/integrations/test_runs/upload"
+)
+
 func main() {
 	var (
 		token          = flag.String("token", "", "TestNod project token")
@@ -60,7 +64,7 @@ func main() {
 		exitBasedOnIgnoreFailures(*ignoreFailures)
 	}
 
-	testNodUploadURL := "https://testnod.com/platform/test_runs/upload"
+	testNodUploadURL := defaultUploadURL
 	if *uploadURL != "" {
 		testNodUploadURL = *uploadURL
 	}
@@ -81,7 +85,7 @@ func main() {
 
 	serverResponse, err := testnod.CreateTestRun(testNodUploadURL, *token, uploadRequest)
 	if err != nil {
-		fmt.Println("There was an error creating the test run on TestNod.")
+		fmt.Printf("Error creating test run on TestNod: %v\n", err)
 		exitBasedOnIgnoreFailures(*ignoreFailures)
 	}
 
