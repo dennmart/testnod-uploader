@@ -37,6 +37,10 @@ func main() {
 	}
 
 	filePath := args[0]
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		fmt.Printf("File not found: %s\n", filePath)
+		exitBasedOnIgnoreFailures(*ignoreFailures)
+	}
 
 	if *validateFile {
 		fmt.Println("Validating file:", filePath)
