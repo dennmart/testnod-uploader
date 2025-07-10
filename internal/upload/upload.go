@@ -9,14 +9,15 @@ import (
 )
 
 func UploadJUnitXmlFile(filePath string, uploadURL string) error {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
-	}
-	defer file.Close()
-
-	err = retry.Do(
+	err := retry.Do(
 		func() error {
+			// Open the file for each retry attempt
+			file, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to open file: %w", err)
+			}
+			defer file.Close()
+
 			req, err := http.NewRequest("PUT", uploadURL, file)
 			if err != nil {
 				return fmt.Errorf("failed to create upload request: %w", err)

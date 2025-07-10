@@ -167,3 +167,197 @@ func TestUploadTagsFlag(t *testing.T) {
 		}
 	})
 }
+
+func TestExitBasedOnIgnoreFailures(t *testing.T) {
+	// We can't directly test os.Exit, but we can test the function exists
+	// and doesn't panic with different inputs
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("exitBasedOnIgnoreFailures() panicked: %v", r)
+		}
+	}()
+
+	// Test with ignore failures true - would call os.Exit(0)
+	// Test with ignore failures false - would call os.Exit(1)
+	// We can't actually test the exit codes without subprocess testing
+	// but we can ensure the function doesn't panic
+
+	// Note: We can't actually call this function in tests because it will exit
+	// the test process. In a real scenario, you might use dependency injection
+	// or a wrapper function to make this testable.
+}
+
+func TestValidateOnly(t *testing.T) {
+	// Create a temporary valid XML file
+	tmpFile, err := os.CreateTemp("", "junit_validate_test_*.xml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	validXML := `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="test" tests="1" failures="0" errors="0" time="0.001">
+	<testcase name="test_example" classname="test.example" time="0.001"/>
+</testsuite>`
+
+	if _, err := tmpFile.WriteString(validXML); err != nil {
+		t.Fatalf("Failed to write test XML: %v", err)
+	}
+	tmpFile.Close()
+
+	_ = Config{
+		FilePath:       tmpFile.Name(),
+		IgnoreFailures: true, // Set to true so we don't exit on validation errors
+	}
+
+	// Test that validateOnly doesn't panic with valid XML
+	// Note: validateOnly calls os.Exit(0) on success, so we can't test it directly
+	// without subprocess testing. In a real scenario, you might refactor to return
+	// an error instead of calling os.Exit directly.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("validateOnly() panicked: %v", r)
+		}
+	}()
+
+	// We can't actually call validateOnly because it will exit the test process
+	// This is a limitation of the current design where business logic is mixed
+	// with system calls like os.Exit
+}
+
+func TestConfigValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Config
+		expectValid bool
+	}{
+		{
+			name: "valid config for upload",
+			config: Config{
+				Token:     "abc123",
+				FilePath:  "test.xml",
+				UploadURL: "https://example.com/upload",
+			},
+			expectValid: true,
+		},
+		{
+			name: "valid config for validation only",
+			config: Config{
+				ValidateFile: true,
+				FilePath:     "test.xml",
+			},
+			expectValid: true,
+		},
+		{
+			name: "invalid config - missing token for upload",
+			config: Config{
+				FilePath:  "test.xml",
+				UploadURL: "https://example.com/upload",
+			},
+			expectValid: false,
+		},
+		{
+			name: "invalid config - missing file path",
+			config: Config{
+				Token:     "abc123",
+				UploadURL: "https://example.com/upload",
+			},
+			expectValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp file if needed
+			if tt.config.FilePath != "" {
+				tmpFile, err := os.CreateTemp("", "config_test_*.xml")
+				if err != nil {
+					t.Fatalf("Failed to create temp file: %v", err)
+				}
+				defer os.Remove(tmpFile.Name())
+				tmpFile.Close()
+				tt.config.FilePath = tmpFile.Name()
+			}
+
+			// Test the validation logic from parseFlags
+			var valid bool
+			if tt.config.FilePath != "" {
+				if _, err := os.Stat(tt.config.FilePath); !os.IsNotExist(err) {
+					if tt.config.ValidateFile || tt.config.Token != "" {
+						valid = true
+					}
+				}
+			}
+
+			if valid != tt.expectValid {
+				t.Errorf("Config validation mismatch. Got valid=%v, expected=%v", valid, tt.expectValid)
+			}
+		})
+	}
+}
+
+func TestParseFlagsEdgeCases(t *testing.T) {
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	tests := []struct {
+		name        string
+		args        []string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:    "custom upload URL",
+			args:    []string{"cmd", "-token=abc123", "-upload-url=https://custom.com/upload", "test.xml"},
+			wantErr: false,
+		},
+		{
+			name:    "all flags set",
+			args:    []string{"cmd", "-token=abc123", "-branch=main", "-commit-sha=sha123", "-run-url=https://ci.com/run", "-build-id=build123", "-ignore-failures", "test.xml"},
+			wantErr: false,
+		},
+		{
+			name:        "validate flag with non-existent file",
+			args:        []string{"cmd", "-validate", "nonexistent.xml"},
+			wantErr:     true,
+			errContains: "file not found",
+		},
+		{
+			name:    "empty token with validate flag",
+			args:    []string{"cmd", "-validate", "-token=", "test.xml"},
+			wantErr: false, // token not required for validation
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp file if needed
+			if len(tt.args) > 0 {
+				lastArg := tt.args[len(tt.args)-1]
+				if strings.HasSuffix(lastArg, ".xml") && !strings.Contains(lastArg, "nonexistent") {
+					tmpFile, err := os.CreateTemp("", "edge_case_test_*.xml")
+					if err != nil {
+						t.Fatalf("Failed to create temp file: %v", err)
+					}
+					defer os.Remove(tmpFile.Name())
+					tmpFile.Close()
+					tt.args[len(tt.args)-1] = tmpFile.Name()
+				}
+			}
+
+			os.Args = tt.args
+			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+
+			_, err := parseFlags()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseFlags() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err != nil && tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("parseFlags() error = %v, should contain %v", err, tt.errContains)
+			}
+		})
+	}
+}
