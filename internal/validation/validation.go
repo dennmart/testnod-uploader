@@ -2,7 +2,9 @@ package validation
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -20,11 +22,9 @@ func ValidateJUnitXMLFile(filePath string) error {
 	for {
 		t, err := decoder.Token()
 		if err != nil {
-			// If we hit EOF without issues, it means the XML is valid so we can break.
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				break
 			}
-
 			return fmt.Errorf("error parsing XML: %w", err)
 		}
 
