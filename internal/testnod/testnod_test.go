@@ -58,24 +58,6 @@ func TestSuccessfulServerResponse_JSONUnmarshal(t *testing.T) {
 	}
 }
 
-func TestFailedServerResponse_JSONUnmarshal(t *testing.T) {
-	jsonData := `{"error_message":"Invalid token provided"}`
-
-	var response FailedServerResponse
-	err := json.Unmarshal([]byte(jsonData), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal FailedServerResponse: %v", err)
-	}
-
-	expected := FailedServerResponse{
-		ErrorMsg: "Invalid token provided",
-	}
-
-	if response != expected {
-		t.Errorf("Unmarshaled response mismatch.\nGot:      %+v\nExpected: %+v", response, expected)
-	}
-}
-
 func TestCreateTestRun_Success(t *testing.T) {
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -160,10 +142,7 @@ func TestCreateTestRun_Success(t *testing.T) {
 func TestCreateTestRun_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		response := FailedServerResponse{
-			ErrorMsg: "Invalid token provided",
-		}
-		json.NewEncoder(w).Encode(response)
+		w.Write([]byte(`{"error_message":"Invalid token provided"}`))
 	}))
 	defer server.Close()
 
@@ -180,8 +159,8 @@ func TestCreateTestRun_ServerError(t *testing.T) {
 	if err == nil {
 		t.Error("CreateTestRun() expected error for server error response")
 	}
-	if !strings.Contains(err.Error(), "Invalid token provided") && !strings.Contains(err.Error(), "400 Bad Request") {
-		t.Errorf("Expected error to contain 'Invalid token provided' or '400 Bad Request', got: %v", err)
+	if !strings.Contains(err.Error(), "400 Bad Request") {
+		t.Errorf("Expected error to contain '400 Bad Request', got: %v", err)
 	}
 }
 

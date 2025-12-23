@@ -37,10 +37,6 @@ type SuccessfulServerResponse struct {
 	PresignedURL string `json:"presigned_url"`
 }
 
-type FailedServerResponse struct {
-	ErrorMsg string `json:"error_message"`
-}
-
 func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTestRunRequest) (SuccessfulServerResponse, error) {
 	requestBodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
@@ -78,7 +74,7 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 		retry.Attempts(3),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {
-			fmt.Println("Could not create test run, retying...")
+			fmt.Println("Could not create test run, retrying...")
 		}),
 	)
 
@@ -87,15 +83,6 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 	}
 
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		var failedServerResponse FailedServerResponse
-		if err := json.NewDecoder(resp.Body).Decode(&failedServerResponse); err != nil {
-			return SuccessfulServerResponse{}, fmt.Errorf("failed to decode response body: %w", err)
-		}
-
-		return SuccessfulServerResponse{}, fmt.Errorf("received non-OK response: %s", failedServerResponse.ErrorMsg)
-	}
 
 	var successfulServerResponse SuccessfulServerResponse
 	if err := json.NewDecoder(resp.Body).Decode(&successfulServerResponse); err != nil {
