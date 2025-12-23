@@ -1,0 +1,30 @@
+# Taken from https://raw.githubusercontent.com/github/gitignore/1d7e3275/Go.gitignore
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Editor/IDE
+.vscode/
+
+# dist directory for built binaries
+dist/
