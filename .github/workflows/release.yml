@@ -27,10 +27,10 @@ jobs:
         run: |
           mkdir -p dist
 
-          GOOS=linux GOARCH=amd64 go build -o dist/${{ env.APP_NAME }}-linux-amd64 .
-          GOOS=linux GOARCH=arm64 go build -o dist/${{ env.APP_NAME }}-linux-arm64 .
-          GOOS=darwin GOARCH=amd64 go build -o dist/${{ env.APP_NAME }}-darwin-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -o dist/${{ env.APP_NAME }}-darwin-arm64 .
+          GOOS=linux GOARCH=amd64 go build -o dist/${{ env.APP_NAME }}-linux-amd64 ./cmd/testnod-uploader
+          GOOS=linux GOARCH=arm64 go build -o dist/${{ env.APP_NAME }}-linux-arm64 ./cmd/testnod-uploader
+          GOOS=darwin GOARCH=amd64 go build -o dist/${{ env.APP_NAME }}-darwin-amd64 ./cmd/testnod-uploader
+          GOOS=darwin GOARCH=arm64 go build -o dist/${{ env.APP_NAME }}-darwin-arm64 ./cmd/testnod-uploader
 
       - name: Create metadata files
         working-directory: dist
