@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  APP_NAME: testnod-uploader
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Get tag version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+
+          GOOS=linux GOARCH=amd64 go build -o dist/${{ env.APP_NAME }}-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -o dist/${{ env.APP_NAME }}-linux-arm64 .
+          GOOS=darwin GOARCH=amd64 go build -o dist/${{ env.APP_NAME }}-darwin-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -o dist/${{ env.APP_NAME }}-darwin-arm64 .
+
+      - name: Create metadata files
+        working-directory: dist
+        run: |
+          echo "${{ steps.version.outputs.VERSION }}" > VERSION
+          sha256sum ${{ env.APP_NAME }}-* > checksums.txt
+
+      - name: Upload to R2
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: |
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/${{ steps.version.outputs.VERSION }}/${{ env.APP_NAME }}-linux-amd64 --file dist/${{ env.APP_NAME }}-linux-amd64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/${{ steps.version.outputs.VERSION }}/${{ env.APP_NAME }}-linux-arm64 --file dist/${{ env.APP_NAME }}-linux-arm64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/${{ steps.version.outputs.VERSION }}/${{ env.APP_NAME }}-darwin-amd64 --file dist/${{ env.APP_NAME }}-darwin-amd64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/${{ steps.version.outputs.VERSION }}/${{ env.APP_NAME }}-darwin-arm64 --file dist/${{ env.APP_NAME }}-darwin-arm64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/${{ steps.version.outputs.VERSION }}/VERSION --file dist/VERSION
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/${{ steps.version.outputs.VERSION }}/checksums.txt --file dist/checksums.txt
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/${{ env.APP_NAME }}-linux-amd64 --file dist/${{ env.APP_NAME }}-linux-amd64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/${{ env.APP_NAME }}-linux-arm64 --file dist/${{ env.APP_NAME }}-linux-arm64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/${{ env.APP_NAME }}-darwin-amd64 --file dist/${{ env.APP_NAME }}-darwin-amd64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/${{ env.APP_NAME }}-darwin-arm64 --file dist/${{ env.APP_NAME }}-darwin-arm64
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/VERSION --file dist/VERSION
+            r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/checksums.txt --file dist/checksums.txt
