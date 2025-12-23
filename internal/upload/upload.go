@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -34,7 +35,7 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 			req.ContentLength = fileInfo.Size()
 			req.Header.Set("Content-Type", "application/xml")
 
-			client := &http.Client{}
+			client := &http.Client{Timeout: 60 * time.Second}
 			resp, err := client.Do(req)
 			if err != nil {
 				return fmt.Errorf("failed to upload file: %w", err)

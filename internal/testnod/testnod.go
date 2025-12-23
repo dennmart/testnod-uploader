@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -59,7 +60,7 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 			req.Header.Set("Accept", "application/json")
 			req.Header.Set("Project-Token", projectToken)
 
-			client := &http.Client{}
+			client := &http.Client{Timeout: 30 * time.Second}
 
 			resp, err = client.Do(req)
 			if err != nil {
