@@ -23,10 +23,9 @@ func TestParseFlags(t *testing.T) {
 			name: "valid args with token",
 			args: []string{"cmd", "-token=abc123", "-branch=main", "test.xml"},
 			wantConfig: Config{
-				Token:     "abc123",
-				Branch:    "main",
-				FilePath:  "test.xml",
-				UploadURL: defaultUploadURL,
+				Token:    "abc123",
+				Branch:   "main",
+				FilePath: "test.xml",
 			},
 			wantErr: false,
 		},
@@ -57,7 +56,6 @@ func TestParseFlags(t *testing.T) {
 			wantConfig: Config{
 				ValidateFile: true,
 				FilePath:     "test.xml",
-				UploadURL:    defaultUploadURL,
 			},
 			wantErr: false,
 		},
@@ -65,10 +63,9 @@ func TestParseFlags(t *testing.T) {
 			name: "with tags",
 			args: []string{"cmd", "-token=abc123", "-tag=feature", "-tag=backend", "test.xml"},
 			wantConfig: Config{
-				Token:     "abc123",
-				FilePath:  "test.xml",
-				UploadURL: defaultUploadURL,
-				Tags:      uploadTagsFlag{{Value: "feature"}, {Value: "backend"}},
+				Token:    "abc123",
+				FilePath: "test.xml",
+				Tags:     uploadTagsFlag{{Value: "feature"}, {Value: "backend"}},
 			},
 			wantErr: false,
 		},
@@ -120,8 +117,8 @@ func TestParseFlags(t *testing.T) {
 				if got.FilePath != tt.wantConfig.FilePath {
 					t.Errorf("parseFlags() FilePath = %v, want %v", got.FilePath, tt.wantConfig.FilePath)
 				}
-				if got.UploadURL != tt.wantConfig.UploadURL {
-					t.Errorf("parseFlags() UploadURL = %v, want %v", got.UploadURL, tt.wantConfig.UploadURL)
+				if got.BaseURL != tt.wantConfig.BaseURL {
+					t.Errorf("parseFlags() BaseURL = %v, want %v", got.BaseURL, tt.wantConfig.BaseURL)
 				}
 				if len(got.Tags) != len(tt.wantConfig.Tags) {
 					t.Errorf("parseFlags() Tags count = %d, want %d", len(got.Tags), len(tt.wantConfig.Tags))
@@ -236,7 +233,7 @@ func TestConfigValidation(t *testing.T) {
 			config: Config{
 				Token:     "abc123",
 				FilePath:  "test.xml",
-				UploadURL: "https://example.com/upload",
+				BaseURL: "https://example.com",
 			},
 			expectValid: true,
 		},
@@ -252,7 +249,7 @@ func TestConfigValidation(t *testing.T) {
 			name: "invalid config - missing token for upload",
 			config: Config{
 				FilePath:  "test.xml",
-				UploadURL: "https://example.com/upload",
+				BaseURL: "https://example.com",
 			},
 			expectValid: false,
 		},
@@ -260,7 +257,7 @@ func TestConfigValidation(t *testing.T) {
 			name: "invalid config - missing file path",
 			config: Config{
 				Token:     "abc123",
-				UploadURL: "https://example.com/upload",
+				BaseURL: "https://example.com",
 			},
 			expectValid: false,
 		},
@@ -306,11 +303,6 @@ func TestParseFlagsEdgeCases(t *testing.T) {
 		wantErr     bool
 		errContains string
 	}{
-		{
-			name:    "custom upload URL",
-			args:    []string{"cmd", "-token=abc123", "-upload-url=https://custom.com/upload", "test.xml"},
-			wantErr: false,
-		},
 		{
 			name:    "all flags set",
 			args:    []string{"cmd", "-token=abc123", "-branch=main", "-commit-sha=sha123", "-run-url=https://ci.com/run", "-build-id=build123", "-ignore-failures", "test.xml"},

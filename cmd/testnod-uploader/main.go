@@ -14,7 +14,7 @@ import (
 type uploadTagsFlag []testnod.Tag
 
 const (
-	defaultUploadURL = "https://testnod.com/integrations/test_runs/upload"
+	defaultBaseURL = "https://testnod.com"
 )
 
 type Config struct {
@@ -25,7 +25,7 @@ type Config struct {
 	RunURL         string
 	BuildID        string
 	IgnoreFailures bool
-	UploadURL      string
+	BaseURL        string
 	Tags           uploadTagsFlag
 	FilePath       string
 }
@@ -35,6 +35,11 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		exitBasedOnIgnoreFailures(config.IgnoreFailures)
+	}
+
+	config.BaseURL = os.Getenv("TESTNOD_BASE_URL")
+	if config.BaseURL == "" {
+		config.BaseURL = defaultBaseURL
 	}
 
 	if config.ValidateFile {
@@ -56,7 +61,6 @@ func parseFlags() (Config, error) {
 	flag.StringVar(&config.RunURL, "run-url", "", "The URL to the CI/CD run")
 	flag.StringVar(&config.BuildID, "build-id", "", "The build identifier for the CI/CD run")
 	flag.BoolVar(&config.IgnoreFailures, "ignore-failures", false, "Always return an exit code of 0 even if there are errors")
-	flag.StringVar(&config.UploadURL, "upload-url", "", "Specify a custom upload URL to upload the JUnit XML file to TestNod")
 
 	flag.Var(&tags, "tag", "Add a tag to this test run (can be repeated)")
 
@@ -71,10 +75,6 @@ func parseFlags() (Config, error) {
 	config.FilePath = args[0]
 	if _, err := os.Stat(config.FilePath); os.IsNotExist(err) {
 		return config, fmt.Errorf("file not found: %s", config.FilePath)
-	}
-
-	if config.UploadURL == "" {
-		config.UploadURL = defaultUploadURL
 	}
 
 	if !config.ValidateFile && config.Token == "" {
@@ -112,7 +112,8 @@ func uploadToTestNod(config Config) {
 		},
 	}
 
-	serverResponse, err := testnod.CreateTestRun(config.UploadURL, config.Token, uploadRequest)
+	uploadURL := config.BaseURL + "/integrations/test_runs/upload"
+	serverResponse, err := testnod.CreateTestRun(uploadURL, config.Token, uploadRequest)
 	if err != nil {
 		fmt.Printf("Error creating test run on TestNod: %v\n", err)
 		exitBasedOnIgnoreFailures(config.IgnoreFailures)
