@@ -10,6 +10,8 @@ import (
 	"github.com/avast/retry-go/v4"
 )
 
+var httpClient = &http.Client{Timeout: 60 * time.Second}
+
 func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 	err := retry.Do(
 		func() error {
@@ -36,8 +38,7 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 			req.ContentLength = fileInfo.Size()
 			req.Header.Set("Content-Type", "application/xml")
 
-			client := &http.Client{Timeout: 60 * time.Second}
-			resp, err := client.Do(req)
+			resp, err := httpClient.Do(req)
 			if err != nil {
 				return fmt.Errorf("failed to upload file: %w", err)
 			}
