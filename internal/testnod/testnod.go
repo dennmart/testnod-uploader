@@ -37,6 +37,8 @@ type SuccessfulServerResponse struct {
 	PresignedURL string `json:"presigned_url"`
 }
 
+var httpClient = &http.Client{Timeout: 30 * time.Second}
+
 func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTestRunRequest) (SuccessfulServerResponse, error) {
 	requestBodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
@@ -56,9 +58,7 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 			req.Header.Set("Accept", "application/json")
 			req.Header.Set("Project-Token", projectToken)
 
-			client := &http.Client{Timeout: 30 * time.Second}
-
-			resp, err = client.Do(req)
+			resp, err = httpClient.Do(req)
 			if err != nil {
 				return fmt.Errorf("failed to perform request: %w", err)
 			}
