@@ -2,6 +2,7 @@ package upload
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -42,8 +43,9 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 			}
 
 			if resp.StatusCode != http.StatusOK {
+				bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 				resp.Body.Close()
-				return fmt.Errorf("failed to upload file")
+				return fmt.Errorf("failed to upload file: status %d: %s", resp.StatusCode, string(bodyBytes))
 			}
 
 			resp.Body.Close()
