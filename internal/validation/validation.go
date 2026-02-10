@@ -17,8 +17,6 @@ func ValidateJUnitXMLFile(filePath string) error {
 
 	decoder := xml.NewDecoder(f)
 
-	var hasTestSuite bool
-
 	for {
 		t, err := decoder.Token()
 		if err != nil {
@@ -30,15 +28,11 @@ func ValidateJUnitXMLFile(filePath string) error {
 
 		switch se := t.(type) {
 		case xml.StartElement:
-			if se.Name.Local == "testsuite" {
-				hasTestSuite = true
+			if se.Name.Local == "testsuite" || se.Name.Local == "testsuites" {
+				return nil
 			}
 		}
 	}
 
-	if !hasTestSuite {
-		return fmt.Errorf("doesn't seem to be a valid JUnit XML file")
-	}
-
-	return nil
+	return fmt.Errorf("file does not contain a <testsuite> or <testsuites> element")
 }

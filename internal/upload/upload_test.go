@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+func setShortRetryDelay(t *testing.T) {
+	t.Helper()
+	original := retryDelay
+	retryDelay = 10 * time.Millisecond
+	t.Cleanup(func() { retryDelay = original })
+}
+
 func TestUploadJUnitXmlFile_Success(t *testing.T) {
 	// Create test content
 	testContent := `<?xml version="1.0" encoding="UTF-8"?>
@@ -65,6 +72,7 @@ func TestUploadJUnitXmlFile_Success(t *testing.T) {
 }
 
 func TestUploadJUnitXmlFile_FileNotFound(t *testing.T) {
+	setShortRetryDelay(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -80,6 +88,7 @@ func TestUploadJUnitXmlFile_FileNotFound(t *testing.T) {
 }
 
 func TestUploadJUnitXmlFile_ServerError(t *testing.T) {
+	setShortRetryDelay(t)
 	// Create test file
 	tmpFile, err := os.CreateTemp("", "junit_upload_test_*.xml")
 	if err != nil {
@@ -106,6 +115,7 @@ func TestUploadJUnitXmlFile_ServerError(t *testing.T) {
 }
 
 func TestUploadJUnitXmlFile_NetworkError(t *testing.T) {
+	setShortRetryDelay(t)
 	// Create test file
 	tmpFile, err := os.CreateTemp("", "junit_upload_test_*.xml")
 	if err != nil {
@@ -124,6 +134,7 @@ func TestUploadJUnitXmlFile_NetworkError(t *testing.T) {
 }
 
 func TestUploadJUnitXmlFile_RetryBehavior(t *testing.T) {
+	setShortRetryDelay(t)
 	// Create test file
 	tmpFile, err := os.CreateTemp("", "junit_upload_test_*.xml")
 	if err != nil {
@@ -160,15 +171,14 @@ func TestUploadJUnitXmlFile_RetryBehavior(t *testing.T) {
 		t.Errorf("Expected 3 attempts, got %d", attemptCount)
 	}
 
-	// Should have taken at least 2 seconds due to retry delays (1s + 1s)
-	// Note: retry delay is in milliseconds, so 2000ms = 2s
-	if duration < 2*time.Second {
-		t.Logf("Retry timing test: Expected at least 2 seconds due to retries, took %v", duration)
-		// Don't fail the test as timing can be inconsistent in test environments
+	// Verify retries actually waited (at least 2 * 10ms = 20ms with test delay)
+	if duration < 20*time.Millisecond {
+		t.Logf("Retry timing test: Expected at least 20ms due to retries, took %v", duration)
 	}
 }
 
 func TestUploadJUnitXmlFile_AllRetriesFail(t *testing.T) {
+	setShortRetryDelay(t)
 	// Create test file
 	tmpFile, err := os.CreateTemp("", "junit_upload_test_*.xml")
 	if err != nil {
@@ -283,6 +293,7 @@ func TestUploadJUnitXmlFile_LargeFile(t *testing.T) {
 }
 
 func TestUploadJUnitXmlFile_PermissionDenied(t *testing.T) {
+	setShortRetryDelay(t)
 	if os.Getuid() == 0 {
 		t.Skip("Skipping permission test when running as root")
 	}
@@ -315,6 +326,7 @@ func TestUploadJUnitXmlFile_PermissionDenied(t *testing.T) {
 }
 
 func TestUploadJUnitXmlFile_Directory(t *testing.T) {
+	setShortRetryDelay(t)
 	// Create temporary directory
 	tmpDir, err := os.MkdirTemp("", "junit_upload_test_dir")
 	if err != nil {

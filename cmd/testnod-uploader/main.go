@@ -153,7 +153,6 @@ func (m *uploadTagsFlag) Set(value string) error {
 func exitBasedOnIgnoreFailures(ignoreFailures bool) {
 	if ignoreFailures {
 		os.Exit(0)
-	} else {
-		os.Exit(1)
 	}
+	os.Exit(1)
 }

@@ -139,7 +139,15 @@ func TestCreateTestRun_Success(t *testing.T) {
 	}
 }
 
+func setShortRetryDelay(t *testing.T) {
+	t.Helper()
+	original := retryDelay
+	retryDelay = 10 * time.Millisecond
+	t.Cleanup(func() { retryDelay = original })
+}
+
 func TestCreateTestRun_ServerError(t *testing.T) {
+	setShortRetryDelay(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(`{"error_message":"Invalid token provided"}`))
@@ -165,6 +173,7 @@ func TestCreateTestRun_ServerError(t *testing.T) {
 }
 
 func TestCreateTestRun_NetworkError(t *testing.T) {
+	setShortRetryDelay(t)
 	// Use malformed URL to trigger network error without making actual request
 	request := CreateTestRunRequest{
 		Tags: []Tag{{Value: "test"}},
@@ -232,6 +241,7 @@ func TestCreateTestRun_InvalidRequestBody(t *testing.T) {
 }
 
 func TestCreateTestRun_RetryBehavior(t *testing.T) {
+	setShortRetryDelay(t)
 	attemptCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attemptCount++
@@ -272,11 +282,9 @@ func TestCreateTestRun_RetryBehavior(t *testing.T) {
 		t.Errorf("Expected 3 attempts, got %d", attemptCount)
 	}
 
-	// Should have taken at least 2 seconds due to retry delays (1s + 1s)
-	// Note: retry delay is in milliseconds, so 2000ms = 2s
-	if duration < 2*time.Second {
-		t.Logf("Retry timing test: Expected at least 2 seconds due to retries, took %v", duration)
-		// Don't fail the test as timing can be inconsistent in test environments
+	// Verify retries actually waited (at least 2 * 10ms = 20ms with test delay)
+	if duration < 20*time.Millisecond {
+		t.Logf("Retry timing test: Expected at least 20ms due to retries, took %v", duration)
 	}
 
 	if response.ID != 123 {
@@ -285,6 +293,7 @@ func TestCreateTestRun_RetryBehavior(t *testing.T) {
 }
 
 func TestCreateTestRun_AllRetriesFail(t *testing.T) {
+	setShortRetryDelay(t)
 	attemptCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attemptCount++
@@ -312,6 +321,7 @@ func TestCreateTestRun_AllRetriesFail(t *testing.T) {
 }
 
 func TestCreateTestRun_EmptyResponse(t *testing.T) {
+	setShortRetryDelay(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		// Send empty response body

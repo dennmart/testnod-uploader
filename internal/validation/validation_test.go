@@ -38,24 +38,28 @@ func TestValidateJUnitXMLFile(t *testing.T) {
 	<testcase name="test_example" classname="test.example" time="0.001"/>
 </root>`,
 			wantErr:  true,
-			errMatch: "doesn't seem to be a valid JUnit XML file",
+			errMatch: "does not contain a <testsuite>",
 		},
 		{
 			name: "empty xml",
 			xmlData: `<?xml version="1.0" encoding="UTF-8"?>
 <root></root>`,
 			wantErr:  true,
-			errMatch: "doesn't seem to be a valid JUnit XML file",
+			errMatch: "does not contain a <testsuite>",
 		},
 		{
-			name:     "malformed xml",
-			xmlData:  `<?xml version="1.0" encoding="UTF-8"?><testsuite><unclosed>`,
-			wantErr:  true,
-			errMatch: "error parsing XML",
+			name:    "malformed xml with testsuite element",
+			xmlData: `<?xml version="1.0" encoding="UTF-8"?><testsuite><unclosed>`,
+			wantErr: false,
 		},
 		{
-			name:     "invalid xml characters",
-			xmlData:  `<?xml version="1.0" encoding="UTF-8"?><testsuite>` + string(rune(0x00)) + `</testsuite>`,
+			name:    "invalid xml characters after testsuite element",
+			xmlData: `<?xml version="1.0" encoding="UTF-8"?><testsuite>` + string(rune(0x00)) + `</testsuite>`,
+			wantErr: false,
+		},
+		{
+			name:     "malformed xml without testsuite element",
+			xmlData:  `<?xml version="1.0" encoding="UTF-8"?><root><unclosed>`,
 			wantErr:  true,
 			errMatch: "error parsing XML",
 		},

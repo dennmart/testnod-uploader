@@ -10,7 +10,12 @@ import (
 	"github.com/avast/retry-go/v4"
 )
 
-var httpClient = &http.Client{Timeout: 60 * time.Second}
+const retryAttempts = 3
+
+var (
+	httpClient = &http.Client{Timeout: 60 * time.Second}
+	retryDelay = 1 * time.Second
+)
 
 func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 	err := retry.Do(
@@ -18,7 +23,7 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 			// Open the file for each retry attempt
 			file, err := os.Open(filePath)
 			if err != nil {
-				return fmt.Errorf("failed to open file: %w", err)
+				return fmt.Errorf("failed to open file %q: %w", filePath, err)
 			}
 			defer file.Close()
 
@@ -52,8 +57,8 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 			resp.Body.Close()
 			return nil
 		},
-		retry.Delay(1000),
-		retry.Attempts(3),
+		retry.Delay(retryDelay),
+		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 	)
 

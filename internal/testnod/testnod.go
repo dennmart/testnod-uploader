@@ -37,7 +37,12 @@ type SuccessfulServerResponse struct {
 	PresignedURL string `json:"presigned_url"`
 }
 
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+const retryAttempts = 3
+
+var (
+	httpClient = &http.Client{Timeout: 30 * time.Second}
+	retryDelay = 1 * time.Second
+)
 
 func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTestRunRequest) (SuccessfulServerResponse, error) {
 	requestBodyBytes, err := json.Marshal(requestBody)
@@ -70,8 +75,8 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 
 			return nil
 		},
-		retry.Delay(1000),
-		retry.Attempts(3),
+		retry.Delay(retryDelay),
+		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {
 			fmt.Println("Could not create test run, retrying...")
