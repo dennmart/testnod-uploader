@@ -57,9 +57,5 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 		retry.LastErrorOnly(true),
 	)
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
