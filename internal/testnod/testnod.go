@@ -79,6 +79,9 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 	)
 
 	if err != nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
 		return SuccessfulServerResponse{}, err
 	}
 

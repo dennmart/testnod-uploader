@@ -98,6 +98,12 @@ func validateOnly(config Config) {
 }
 
 func uploadToTestNod(config Config) {
+	err := validation.ValidateJUnitXMLFile(config.FilePath)
+	if err != nil {
+		fmt.Printf("File validation failed: %v\n", err)
+		exitBasedOnIgnoreFailures(config.IgnoreFailures)
+	}
+
 	fmt.Printf("%s is a valid JUnit XML file. Creating test run...\n", config.FilePath)
 
 	uploadRequest := testnod.CreateTestRunRequest{
