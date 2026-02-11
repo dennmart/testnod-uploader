@@ -103,3 +103,34 @@ go test ./cmd/testnod-uploader -run TestParseFlags
 4. PUT the XML file to the presigned URL
 
 Both API and upload steps retry up to 3 times with a 1-second delay between attempts.
+
+## CI/CD
+
+### Tests
+
+Tests run automatically on every push to `main` via GitHub Actions (`.github/workflows/test.yml`).
+
+### Releasing
+
+The release workflow (`.github/workflows/release.yml`) triggers when a version tag is pushed:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This builds binaries for six platforms:
+
+| OS | Architectures |
+|----|---------------|
+| Linux | amd64, arm64 |
+| macOS | amd64, arm64 |
+| Windows | amd64, arm64 |
+
+The workflow generates SHA-256 checksums and a VERSION file, then uploads everything to a Cloudflare R2 bucket. Binaries are stored both under the version path (`testnod-uploader/<version>/`) and under `testnod-uploader/latest/` so the most recent release is always accessible at a stable URL.
+
+**Required repository secrets for releases:**
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `R2_BUCKET`
