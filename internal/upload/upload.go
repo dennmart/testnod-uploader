@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
+
+	"testnod-uploader/internal/debug"
 )
 
 const retryAttempts = 3
@@ -43,10 +45,14 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 			req.ContentLength = fileInfo.Size()
 			req.Header.Set("Content-Type", "application/xml")
 
+			debug.Log("file: name=%s size=%d bytes", fileInfo.Name(), fileInfo.Size())
+			debug.Log("request: %s content-length=%d", req.Method, req.ContentLength)
 			resp, err := httpClient.Do(req)
 			if err != nil {
 				return fmt.Errorf("failed to upload file: %w", err)
 			}
+
+			debug.Log("response: status=%d", resp.StatusCode)
 
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
@@ -60,6 +66,9 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 		retry.Delay(retryDelay),
 		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
+		retry.OnRetry(func(attempt uint, err error) {
+			debug.Log("retry attempt %d: %v", attempt, err)
+		}),
 	)
 
 	return err

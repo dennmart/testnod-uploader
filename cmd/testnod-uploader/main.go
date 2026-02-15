@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"testnod-uploader/internal/debug"
 	"testnod-uploader/internal/testnod"
 	"testnod-uploader/internal/upload"
 	"testnod-uploader/internal/validation"
@@ -41,6 +42,13 @@ func main() {
 	if config.BaseURL == "" {
 		config.BaseURL = defaultBaseURL
 	}
+
+	redactedToken := ""
+	if len(config.Token) >= 4 {
+		redactedToken = config.Token[:4] + "..."
+	}
+	debug.Log("config: file=%s branch=%q commit-sha=%q tags=%s base-url=%s token=%s",
+		config.FilePath, config.Branch, config.CommitSHA, config.Tags.String(), config.BaseURL, redactedToken)
 
 	if config.ValidateFile {
 		validateOnly(config)
@@ -119,13 +127,17 @@ func uploadToTestNod(config Config) {
 	}
 
 	uploadURL := config.BaseURL + "/integrations/test_runs/upload"
+	debug.Log("CreateTestRun URL: %s", uploadURL)
 	serverResponse, err := testnod.CreateTestRun(uploadURL, config.Token, uploadRequest)
 	if err != nil {
 		fmt.Printf("Error creating test run on TestNod: %v\n", err)
 		exitBasedOnIgnoreFailures(config.IgnoreFailures)
 	}
 
+	debug.Log("test run created: id=%d presigned-url-host=%s", serverResponse.ID, serverResponse.PresignedURL[:min(60, len(serverResponse.PresignedURL))])
+
 	fmt.Println("Created test run, uploading JUnit XML file...")
+	debug.Log("uploading file: %s", config.FilePath)
 	err = upload.UploadJUnitXmlFile(config.FilePath, serverResponse.PresignedURL)
 
 	if err != nil {

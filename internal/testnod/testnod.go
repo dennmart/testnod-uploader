@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
+
+	"testnod-uploader/internal/debug"
 )
 
 type CreateTestRunRequest struct {
@@ -63,10 +65,12 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 			req.Header.Set("Accept", "application/json")
 			req.Header.Set("Project-Token", projectToken)
 
+			debug.Log("request: %s %s content-type=%s", req.Method, req.URL, req.Header.Get("Content-Type"))
 			resp, err = httpClient.Do(req)
 			if err != nil {
 				return fmt.Errorf("failed to perform request: %w", err)
 			}
+			debug.Log("response: status=%d", resp.StatusCode)
 
 			if resp.StatusCode != http.StatusCreated {
 				resp.Body.Close()
@@ -79,6 +83,7 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {
+			debug.Log("retry attempt %d: %v", attempt, err)
 			fmt.Println("Could not create test run, retrying...")
 		}),
 	)
@@ -97,5 +102,6 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 		return SuccessfulServerResponse{}, fmt.Errorf("failed to decode response body: %w", err)
 	}
 
+	debug.Log("response body: id=%d project=%s test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.Project, successfulServerResponse.TestRunURL)
 	return successfulServerResponse, nil
 }

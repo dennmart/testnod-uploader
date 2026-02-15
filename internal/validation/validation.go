@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"testnod-uploader/internal/debug"
 )
 
 func ValidateJUnitXMLFile(filePath string) error {
+	debug.Log("validating file: %s", filePath)
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -29,6 +32,7 @@ func ValidateJUnitXMLFile(filePath string) error {
 		switch se := t.(type) {
 		case xml.StartElement:
 			if se.Name.Local == "testsuite" || se.Name.Local == "testsuites" {
+				debug.Log("found valid root element: <%s>", se.Name.Local)
 				return nil
 			}
 		}

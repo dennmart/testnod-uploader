@@ -8,6 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the binary
 go build -o testnod-uploader ./cmd/testnod-uploader
 
+# Build with debug logging (prints [DEBUG] lines to stderr)
+go build -tags debug -o testnod-uploader ./cmd/testnod-uploader
+
+# Run with debug logging (without building)
+go run -tags debug ./cmd/testnod-uploader
+
 # Run all tests
 go test ./...
 
@@ -31,6 +37,7 @@ This is a CLI tool for uploading JUnit XML test results to TestNod (testnod.com)
 ### Package Structure
 
 - `cmd/testnod-uploader/` - CLI entry point with flag parsing and orchestration
+- `internal/debug/` - Build-tag-based debug logging (`-tags debug` enables output, no-op otherwise)
 - `internal/testnod/` - TestNod API client for creating test runs (returns presigned upload URL)
 - `internal/upload/` - Handles file upload to the presigned S3 URL
 - `internal/validation/` - JUnit XML validation (checks for valid XML with `<testsuite>` element)
