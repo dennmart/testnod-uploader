@@ -105,3 +105,54 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 	debug.Log("response body: id=%d project=%s test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.Project, successfulServerResponse.TestRunURL)
 	return successfulServerResponse, nil
 }
+
+type UploadFailureRequest struct {
+	FailureMessage string `json:"failure_message"`
+}
+
+func NotifyUploadFailure(baseURL string, projectToken string, failureMessage string) error {
+	failureURL := baseURL + "/integrations/test_runs/failed"
+	debug.Log("NotifyUploadFailure URL: %s", failureURL)
+
+	requestBodyBytes, err := json.Marshal(UploadFailureRequest{FailureMessage: failureMessage})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	err = retry.Do(
+		func() error {
+			req, err := http.NewRequest("POST", failureURL, bytes.NewBuffer(requestBodyBytes))
+			if err != nil {
+				return fmt.Errorf("failed to create request: %w", err)
+			}
+
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("Testnod-Auth", projectToken)
+
+			debug.Log("request: %s %s", req.Method, req.URL)
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to perform request: %w", err)
+			}
+			defer resp.Body.Close()
+
+			debug.Log("response: status=%d", resp.StatusCode)
+
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("received non-OK response: %s", resp.Status)
+			}
+
+			return nil
+		},
+		retry.Delay(retryDelay),
+		retry.Attempts(retryAttempts),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(attempt uint, err error) {
+			debug.Log("retry attempt %d: %v", attempt, err)
+			fmt.Println("Could not notify TestNod of upload failure, retrying...")
+		}),
+	)
+
+	return err
+}

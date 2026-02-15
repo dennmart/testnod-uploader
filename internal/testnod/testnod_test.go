@@ -320,6 +320,108 @@ func TestCreateTestRun_AllRetriesFail(t *testing.T) {
 	}
 }
 
+func TestNotifyUploadFailure_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("Expected POST method, got %s", r.Method)
+		}
+		if r.URL.Path != "/integrations/test_runs/failed" {
+			t.Errorf("Expected path /integrations/test_runs/failed, got %s", r.URL.Path)
+		}
+		if r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
+		}
+		if r.Header.Get("Accept") != "application/json" {
+			t.Errorf("Expected Accept application/json, got %s", r.Header.Get("Accept"))
+		}
+		if r.Header.Get("Testnod-Auth") != "test-token" {
+			t.Errorf("Expected Testnod-Auth test-token, got %s", r.Header.Get("Testnod-Auth"))
+		}
+
+		var body UploadFailureRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("Failed to decode request body: %v", err)
+		}
+		if body.FailureMessage != "Upload failed" {
+			t.Errorf("Expected failure_message 'Upload failed', got %q", body.FailureMessage)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	err := NotifyUploadFailure(server.URL, "test-token", "Upload failed")
+	if err != nil {
+		t.Fatalf("NotifyUploadFailure() unexpected error: %v", err)
+	}
+}
+
+func TestNotifyUploadFailure_ServerError(t *testing.T) {
+	setShortRetryDelay(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	err := NotifyUploadFailure(server.URL, "test-token", "Upload failed")
+	if err == nil {
+		t.Error("NotifyUploadFailure() expected error for server error response")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("Expected error to contain '500', got: %v", err)
+	}
+}
+
+func TestNotifyUploadFailure_NetworkError(t *testing.T) {
+	setShortRetryDelay(t)
+	err := NotifyUploadFailure("://invalid-url", "test-token", "Upload failed")
+	if err == nil {
+		t.Error("NotifyUploadFailure() expected error for network failure")
+	}
+}
+
+func TestNotifyUploadFailure_RetryBehavior(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	err := NotifyUploadFailure(server.URL, "test-token", "Upload failed")
+	if err != nil {
+		t.Fatalf("NotifyUploadFailure() unexpected error: %v", err)
+	}
+
+	if attemptCount != 3 {
+		t.Errorf("Expected 3 attempts, got %d", attemptCount)
+	}
+}
+
+func TestNotifyUploadFailure_AllRetriesFail(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	err := NotifyUploadFailure(server.URL, "test-token", "Upload failed")
+	if err == nil {
+		t.Error("NotifyUploadFailure() expected error when all retries fail")
+	}
+
+	if attemptCount != 3 {
+		t.Errorf("Expected 3 attempts, got %d", attemptCount)
+	}
+}
+
 func TestCreateTestRun_EmptyResponse(t *testing.T) {
 	setShortRetryDelay(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
