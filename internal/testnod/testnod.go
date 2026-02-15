@@ -106,19 +106,29 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 	return successfulServerResponse, nil
 }
 
-func NotifyUploadFailure(baseURL string, projectToken string, testRunID int) error {
-	failureURL := fmt.Sprintf("%s/integrations/test_runs/%d/upload_failure", baseURL, testRunID)
+type UploadFailureRequest struct {
+	FailureMessage string `json:"failure_message"`
+}
+
+func NotifyUploadFailure(baseURL string, projectToken string, failureMessage string) error {
+	failureURL := baseURL + "/integrations/test_runs/failed"
 	debug.Log("NotifyUploadFailure URL: %s", failureURL)
 
-	err := retry.Do(
+	requestBodyBytes, err := json.Marshal(UploadFailureRequest{FailureMessage: failureMessage})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	err = retry.Do(
 		func() error {
-			req, err := http.NewRequest("PATCH", failureURL, nil)
+			req, err := http.NewRequest("POST", failureURL, bytes.NewBuffer(requestBodyBytes))
 			if err != nil {
 				return fmt.Errorf("failed to create request: %w", err)
 			}
 
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
-			req.Header.Set("Project-Token", projectToken)
+			req.Header.Set("Testnod-Auth", projectToken)
 
 			debug.Log("request: %s %s", req.Method, req.URL)
 			resp, err := httpClient.Do(req)
