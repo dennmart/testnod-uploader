@@ -142,6 +142,13 @@ func uploadToTestNod(config Config) {
 
 	if err != nil {
 		fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
+
+		debug.Log("notifying TestNod of upload failure for test run %d", serverResponse.ID)
+		notifyErr := testnod.NotifyUploadFailure(config.BaseURL, config.Token, serverResponse.ID)
+		if notifyErr != nil {
+			debug.Log("failed to notify TestNod of upload failure: %v", notifyErr)
+		}
+
 		exitBasedOnIgnoreFailures(config.IgnoreFailures)
 	}
 

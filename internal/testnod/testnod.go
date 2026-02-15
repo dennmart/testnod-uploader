@@ -105,3 +105,44 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 	debug.Log("response body: id=%d project=%s test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.Project, successfulServerResponse.TestRunURL)
 	return successfulServerResponse, nil
 }
+
+func NotifyUploadFailure(baseURL string, projectToken string, testRunID int) error {
+	failureURL := fmt.Sprintf("%s/integrations/test_runs/%d/upload_failure", baseURL, testRunID)
+	debug.Log("NotifyUploadFailure URL: %s", failureURL)
+
+	err := retry.Do(
+		func() error {
+			req, err := http.NewRequest("PATCH", failureURL, nil)
+			if err != nil {
+				return fmt.Errorf("failed to create request: %w", err)
+			}
+
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("Project-Token", projectToken)
+
+			debug.Log("request: %s %s", req.Method, req.URL)
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to perform request: %w", err)
+			}
+			defer resp.Body.Close()
+
+			debug.Log("response: status=%d", resp.StatusCode)
+
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("received non-OK response: %s", resp.Status)
+			}
+
+			return nil
+		},
+		retry.Delay(retryDelay),
+		retry.Attempts(retryAttempts),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(attempt uint, err error) {
+			debug.Log("retry attempt %d: %v", attempt, err)
+			fmt.Println("Could not notify TestNod of upload failure, retrying...")
+		}),
+	)
+
+	return err
+}
