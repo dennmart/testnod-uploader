@@ -1,5 +1,7 @@
 # TestNod Uploader - CI Integration
 
+Each upload must include a `build-id` so TestNod can group parallel runners or matrix shards from the same CI build into one logical test run. Use whatever value uniquely identifies a build within your CI provider — the canonical choice for each provider is shown below.
+
 ## GitHub Actions
 
 ```yaml
@@ -8,6 +10,7 @@
   with:
     token: ${{ secrets.TESTNOD_TOKEN }}
     file: results.xml
+    build-id: ${{ github.run_id }}
 ```
 
 ## CircleCI
@@ -23,6 +26,7 @@ workflows:
       - testnod/upload:
           token: TESTNOD_TOKEN
           file: results.xml
+          build-id: ${CIRCLE_WORKFLOW_ID}
           requires:
             - test
 ```
@@ -41,7 +45,8 @@ pipeline {
         stage('Upload') {
             steps {
                 testnodUpload token: credentials('testnod-token'),
-                              file: 'results.xml'
+                              file: 'results.xml',
+                              buildId: env.BUILD_TAG
             }
         }
     }
@@ -59,4 +64,5 @@ upload_results:
   variables:
     TESTNOD_TOKEN: $TESTNOD_TOKEN
     TESTNOD_FILE: results.xml
+    TESTNOD_BUILD_ID: $CI_PIPELINE_ID
 ```

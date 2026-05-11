@@ -44,15 +44,18 @@ This is a CLI tool for uploading JUnit XML test results to TestNod (testnod.com)
 
 ### Upload Flow
 
-1. Parse CLI flags and validate inputs
-2. Call TestNod API to create a test run (receives presigned S3 URL in response)
-3. Upload the JUnit XML file directly to S3 using the presigned URL
+1. Parse CLI flags and validate inputs (`-build-id` is required outside of `-validate` mode — it groups parallel/matrix shards into one logical test run on the server)
+2. Call TestNod API to create a test run; the response includes `project_id`, `test_run_id`, `upload_id`, and a presigned S3 URL
+3. PUT the JUnit XML file to the presigned URL, sending the three `x-amz-meta-project_id` / `x-amz-meta-test_run_id` / `x-amz-meta-upload_id` headers — values must match what the presigner signed, or S3 rejects with `403 SignatureDoesNotMatch`
+4. On upload failure, notify TestNod via `POST /integrations/test_runs/uploads/{upload_id}/failed` (per-upload, not per-run) with body `{project_id, test_run_id, failure_message}` and the `Testnod-Auth` header
 
 Both API calls and file uploads use retry logic (3 attempts with 1 second delay) via `github.com/avast/retry-go/v4`.
+
+This binary owns per-upload state only. Run-level finalization is the webapp's job — CI calls `/integrations/test_runs/finalize` separately to aggregate results across all uploads.
 
 ### CLI Usage
 
 ```bash
-./testnod-uploader -token=<project-token> [-branch=<branch>] [-commit-sha=<sha>] [-tag=<tag>]... <file.xml>
-./testnod-uploader -validate <file.xml>  # Validate only, no upload
+./testnod-uploader -token=<project-token> -build-id=<build-id> [-branch=<branch>] [-commit-sha=<sha>] [-tag=<tag>]... <file.xml>
+./testnod-uploader -validate <file.xml>  # Validate only, no upload (no -build-id needed)
 ```

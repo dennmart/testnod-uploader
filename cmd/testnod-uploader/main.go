@@ -89,6 +89,10 @@ func parseFlags() (Config, error) {
 		return config, fmt.Errorf("no token specified")
 	}
 
+	if !config.ValidateFile && config.BuildID == "" {
+		return config, fmt.Errorf("no build ID specified (-build-id is required)")
+	}
+
 	return config, nil
 }
 
@@ -134,17 +138,29 @@ func uploadToTestNod(config Config) {
 		exitBasedOnIgnoreFailures(config.IgnoreFailures)
 	}
 
-	debug.Log("test run created: id=%d presigned-url-host=%s", serverResponse.ID, serverResponse.PresignedURL[:min(60, len(serverResponse.PresignedURL))])
+	debug.Log("test run created: id=%d test_run_id=%d upload_id=%d presigned-url-host=%s", serverResponse.ID, serverResponse.TestRunID, serverResponse.UploadID, serverResponse.PresignedURL[:min(60, len(serverResponse.PresignedURL))])
 
 	fmt.Println("Created test run, uploading JUnit XML file...")
 	debug.Log("uploading file: %s", config.FilePath)
-	err = upload.UploadJUnitXmlFile(config.FilePath, serverResponse.PresignedURL)
+	uploadMeta := upload.S3Metadata{
+		ProjectID: serverResponse.ProjectID,
+		TestRunID: serverResponse.TestRunID,
+		UploadID:  serverResponse.UploadID,
+	}
+	err = upload.UploadJUnitXmlFile(config.FilePath, serverResponse.PresignedURL, uploadMeta)
 
 	if err != nil {
 		fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
 
-		debug.Log("notifying TestNod of upload failure for test run %d", serverResponse.ID)
-		notifyErr := testnod.NotifyUploadFailure(config.BaseURL, config.Token, "The test results file could not be uploaded. Please try again or contact support if the issue persists.")
+		debug.Log("notifying TestNod of upload failure for upload %d (test run %d)", serverResponse.UploadID, serverResponse.TestRunID)
+		notifyErr := testnod.NotifyUploadFailure(
+			config.BaseURL,
+			config.Token,
+			serverResponse.UploadID,
+			serverResponse.ProjectID,
+			serverResponse.TestRunID,
+			"The test results file could not be uploaded. Please try again or contact support if the issue persists.",
+		)
 		if notifyErr != nil {
 			debug.Log("failed to notify TestNod of upload failure: %v", notifyErr)
 		}

@@ -20,11 +20,12 @@ func TestParseFlags(t *testing.T) {
 		errContains string
 	}{
 		{
-			name: "valid args with token",
-			args: []string{"cmd", "-token=abc123", "-branch=main", "test.xml"},
+			name: "valid args with token and build id",
+			args: []string{"cmd", "-token=abc123", "-branch=main", "-build-id=build-1", "test.xml"},
 			wantConfig: Config{
 				Token:    "abc123",
 				Branch:   "main",
+				BuildID:  "build-1",
 				FilePath: "test.xml",
 			},
 			wantErr: false,
@@ -51,6 +52,16 @@ func TestParseFlags(t *testing.T) {
 			errContains: "no token specified",
 		},
 		{
+			name: "missing build id without validate flag",
+			args: []string{"cmd", "-token=abc123", "test.xml"},
+			wantConfig: Config{
+				Token:    "abc123",
+				FilePath: "test.xml",
+			},
+			wantErr:     true,
+			errContains: "no build ID specified",
+		},
+		{
 			name: "valid args with validate flag",
 			args: []string{"cmd", "-validate", "test.xml"},
 			wantConfig: Config{
@@ -60,10 +71,20 @@ func TestParseFlags(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "validate flag without build id is fine",
+			args: []string{"cmd", "-validate", "test.xml"},
+			wantConfig: Config{
+				ValidateFile: true,
+				FilePath:     "test.xml",
+			},
+			wantErr: false,
+		},
+		{
 			name: "with tags",
-			args: []string{"cmd", "-token=abc123", "-tag=feature", "-tag=backend", "test.xml"},
+			args: []string{"cmd", "-token=abc123", "-build-id=build-1", "-tag=feature", "-tag=backend", "test.xml"},
 			wantConfig: Config{
 				Token:    "abc123",
+				BuildID:  "build-1",
 				FilePath: "test.xml",
 				Tags:     uploadTagsFlag{{Value: "feature"}, {Value: "backend"}},
 			},
@@ -113,6 +134,9 @@ func TestParseFlags(t *testing.T) {
 				}
 				if got.Branch != tt.wantConfig.Branch {
 					t.Errorf("parseFlags() Branch = %v, want %v", got.Branch, tt.wantConfig.Branch)
+				}
+				if got.BuildID != tt.wantConfig.BuildID {
+					t.Errorf("parseFlags() BuildID = %v, want %v", got.BuildID, tt.wantConfig.BuildID)
 				}
 				if got.FilePath != tt.wantConfig.FilePath {
 					t.Errorf("parseFlags() FilePath = %v, want %v", got.FilePath, tt.wantConfig.FilePath)

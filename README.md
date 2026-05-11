@@ -31,7 +31,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are available
 | `-branch` | No | Branch name to associate with the test run |
 | `-commit-sha` | No | Commit SHA to associate with the test run |
 | `-run-url` | No | URL to the CI/CD run |
-| `-build-id` | No | Build identifier for the CI/CD run |
+| `-build-id` | Yes (unless `-validate`) | Build identifier for the CI/CD run. Shards of one build (parallel runners, matrix jobs) that share a build ID are grouped into one logical test run. |
 | `-tag` | No | Tag for the test run (repeatable) |
 | `-ignore-failures` | No | Always exit 0, even if upload fails |
 
@@ -42,7 +42,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are available
 ./testnod-uploader -validate junit_results.xml
 
 # Basic upload
-./testnod-uploader -token=abc123 junit_results.xml
+./testnod-uploader -token=abc123 -build-id=build-456 junit_results.xml
 
 # Upload with CI metadata and tags
 ./testnod-uploader \
@@ -56,7 +56,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are available
   junit_results.xml
 
 # Don't fail the CI build if upload has issues
-./testnod-uploader -token=abc123 -ignore-failures junit_results.xml
+./testnod-uploader -token=abc123 -build-id=build-456 -ignore-failures junit_results.xml
 ```
 
 ### Environment Variables
@@ -97,10 +97,11 @@ go test ./cmd/testnod-uploader -run TestParseFlags
 
 ## How It Works
 
-1. Parse CLI flags and validate inputs
+1. Parse CLI flags and validate inputs (`-build-id` is required for uploads — shards with the same build ID are aggregated into one test run server-side)
 2. Validate the JUnit XML file (check for well-formed XML with a `<testsuite>` or `<testsuites>` element)
-3. POST to the TestNod API to create a test run — the response includes a presigned S3 upload URL
-4. PUT the XML file to the presigned URL
+3. POST to the TestNod API to create a test run — the response includes the presigned S3 upload URL and the identifiers (`project_id`, `test_run_id`, `upload_id`) that the presigned URL was signed against
+4. PUT the XML file to the presigned URL, sending the matching `x-amz-meta-project_id`, `x-amz-meta-test_run_id`, and `x-amz-meta-upload_id` headers
+5. If the PUT fails, notify TestNod via the per-upload failure callback (`/integrations/test_runs/uploads/{upload_id}/failed`) so the upload row is marked failed without poisoning the whole run
 
 Both API and upload steps retry up to 3 times with a 1-second delay between attempts.
 

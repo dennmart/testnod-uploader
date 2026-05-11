@@ -35,6 +35,9 @@ type TestRunMetadata struct {
 type SuccessfulServerResponse struct {
 	ID           int    `json:"id"`
 	Project      string `json:"project"`
+	ProjectID    string `json:"project_id"`
+	TestRunID    int    `json:"test_run_id"`
+	UploadID     int    `json:"upload_id"`
 	TestRunURL   string `json:"test_run_url"`
 	PresignedURL string `json:"presigned_url"`
 }
@@ -102,19 +105,25 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 		return SuccessfulServerResponse{}, fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	debug.Log("response body: id=%d project=%s test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.Project, successfulServerResponse.TestRunURL)
+	debug.Log("response body: id=%d project=%s project_id=%s test_run_id=%d upload_id=%d test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.Project, successfulServerResponse.ProjectID, successfulServerResponse.TestRunID, successfulServerResponse.UploadID, successfulServerResponse.TestRunURL)
 	return successfulServerResponse, nil
 }
 
 type UploadFailureRequest struct {
+	ProjectID      string `json:"project_id"`
+	TestRunID      int    `json:"test_run_id"`
 	FailureMessage string `json:"failure_message"`
 }
 
-func NotifyUploadFailure(baseURL string, projectToken string, failureMessage string) error {
-	failureURL := baseURL + "/integrations/test_runs/failed"
+func NotifyUploadFailure(baseURL string, projectToken string, uploadID int, projectID string, testRunID int, failureMessage string) error {
+	failureURL := fmt.Sprintf("%s/integrations/test_runs/uploads/%d/failed", baseURL, uploadID)
 	debug.Log("NotifyUploadFailure URL: %s", failureURL)
 
-	requestBodyBytes, err := json.Marshal(UploadFailureRequest{FailureMessage: failureMessage})
+	requestBodyBytes, err := json.Marshal(UploadFailureRequest{
+		ProjectID:      projectID,
+		TestRunID:      testRunID,
+		FailureMessage: failureMessage,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
