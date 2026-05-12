@@ -101,7 +101,7 @@ go test ./cmd/testnod-uploader -run TestParseFlags
 2. Validate the JUnit XML file (check for well-formed XML with a `<testsuite>` or `<testsuites>` element)
 3. POST to the TestNod API to create a test run — the response includes the presigned S3 upload URL and the identifiers (`project_id`, `test_run_id`, `upload_id`) needed for the failure callback
 4. PUT the XML file to the presigned URL with `Content-Type: application/xml` — the object metadata is encoded in the URL's query string by the presigner, so no extra headers are needed
-5. If the PUT fails, notify TestNod via the per-upload failure callback (`/integrations/test_runs/uploads/{upload_id}/failed`) so the upload row is marked failed without poisoning the whole run
+5. If the PUT fails, notify TestNod via the per-upload failure callback (`/integrations/test_runs/upload_failed`) so the upload row is marked failed without poisoning the whole run
 
 Both API and upload steps retry up to 3 times with a 1-second delay between attempts.
 

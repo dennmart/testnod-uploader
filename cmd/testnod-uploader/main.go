@@ -152,7 +152,6 @@ func uploadToTestNod(config Config) {
 			config.BaseURL,
 			config.Token,
 			serverResponse.UploadID,
-			serverResponse.ProjectID,
 			serverResponse.TestRunID,
 			"The test results file could not be uploaded. Please try again or contact support if the issue persists.",
 		)

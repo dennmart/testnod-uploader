@@ -38,6 +38,7 @@ func TestCreateTestRunRequest_JSONMarshal(t *testing.T) {
 }
 
 func TestSuccessfulServerResponse_JSONUnmarshal(t *testing.T) {
+	// project_id may still appear in the webapp response; ensure it doesn't break unmarshaling.
 	jsonData := `{"id":123,"project":"test-project","project_id":"ed72d535-b152-45e3-9de0-7d090f902855","test_run_id":17,"upload_id":1,"test_run_url":"https://example.com/test/123","presigned_url":"https://s3.amazonaws.com/upload"}`
 
 	var response SuccessfulServerResponse
@@ -49,7 +50,6 @@ func TestSuccessfulServerResponse_JSONUnmarshal(t *testing.T) {
 	expected := SuccessfulServerResponse{
 		ID:           123,
 		Project:      "test-project",
-		ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 		TestRunID:    17,
 		UploadID:     1,
 		TestRunURL:   "https://example.com/test/123",
@@ -105,7 +105,6 @@ func TestCreateTestRun_Success(t *testing.T) {
 		response := SuccessfulServerResponse{
 			ID:           123,
 			Project:      "test-project",
-			ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 			TestRunID:    17,
 			UploadID:     1,
 			TestRunURL:   "https://example.com/test/123",
@@ -136,7 +135,6 @@ func TestCreateTestRun_Success(t *testing.T) {
 	expected := SuccessfulServerResponse{
 		ID:           123,
 		Project:      "test-project",
-		ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 		TestRunID:    17,
 		UploadID:     1,
 		TestRunURL:   "https://example.com/test/123",
@@ -264,7 +262,6 @@ func TestCreateTestRun_RetryBehavior(t *testing.T) {
 		json.NewEncoder(w).Encode(SuccessfulServerResponse{
 			ID:           123,
 			Project:      "test-project",
-			ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 			TestRunID:    17,
 			UploadID:     1,
 			TestRunURL:   "https://example.com/test/123",
@@ -337,8 +334,8 @@ func TestNotifyUploadFailure_Success(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("Expected POST method, got %s", r.Method)
 		}
-		if r.URL.Path != "/integrations/test_runs/uploads/1/failed" {
-			t.Errorf("Expected path /integrations/test_runs/uploads/1/failed, got %s", r.URL.Path)
+		if r.URL.Path != "/integrations/test_runs/upload_failed" {
+			t.Errorf("Expected path /integrations/test_runs/upload_failed, got %s", r.URL.Path)
 		}
 		if r.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
@@ -346,8 +343,8 @@ func TestNotifyUploadFailure_Success(t *testing.T) {
 		if r.Header.Get("Accept") != "application/json" {
 			t.Errorf("Expected Accept application/json, got %s", r.Header.Get("Accept"))
 		}
-		if r.Header.Get("Testnod-Auth") != "test-token" {
-			t.Errorf("Expected Testnod-Auth test-token, got %s", r.Header.Get("Testnod-Auth"))
+		if r.Header.Get("Project-Token") != "test-token" {
+			t.Errorf("Expected Project-Token test-token, got %s", r.Header.Get("Project-Token"))
 		}
 
 		var body UploadFailureRequest
@@ -355,8 +352,8 @@ func TestNotifyUploadFailure_Success(t *testing.T) {
 			t.Errorf("Failed to decode request body: %v", err)
 		}
 		expectedBody := UploadFailureRequest{
-			ProjectID:      "ed72d535-b152-45e3-9de0-7d090f902855",
 			TestRunID:      17,
+			UploadID:       1,
 			FailureMessage: "Upload failed",
 		}
 		if !reflect.DeepEqual(body, expectedBody) {
@@ -367,26 +364,31 @@ func TestNotifyUploadFailure_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NotifyUploadFailure(server.URL, "test-token", 1, "ed72d535-b152-45e3-9de0-7d090f902855", 17, "Upload failed")
+	err := NotifyUploadFailure(server.URL, "test-token", 1, 17, "Upload failed")
 	if err != nil {
 		t.Fatalf("NotifyUploadFailure() unexpected error: %v", err)
 	}
 }
 
-func TestNotifyUploadFailure_UploadIDInURL(t *testing.T) {
-	var capturedPath string
+func TestNotifyUploadFailure_UploadIDInBody(t *testing.T) {
+	var capturedBody UploadFailureRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&capturedBody); err != nil {
+			t.Errorf("Failed to decode body: %v", err)
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	err := NotifyUploadFailure(server.URL, "test-token", 42, "proj-uuid", 99, "Upload failed")
+	err := NotifyUploadFailure(server.URL, "test-token", 42, 99, "Upload failed")
 	if err != nil {
 		t.Fatalf("NotifyUploadFailure() unexpected error: %v", err)
 	}
-	if capturedPath != "/integrations/test_runs/uploads/42/failed" {
-		t.Errorf("Expected path /integrations/test_runs/uploads/42/failed, got %s", capturedPath)
+	if capturedBody.UploadID != 42 {
+		t.Errorf("Expected body upload_id=42, got %d", capturedBody.UploadID)
+	}
+	if capturedBody.TestRunID != 99 {
+		t.Errorf("Expected body test_run_id=99, got %d", capturedBody.TestRunID)
 	}
 }
 
@@ -397,7 +399,7 @@ func TestNotifyUploadFailure_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NotifyUploadFailure(server.URL, "test-token", 1, "proj-uuid", 17, "Upload failed")
+	err := NotifyUploadFailure(server.URL, "test-token", 1, 17, "Upload failed")
 	if err == nil {
 		t.Error("NotifyUploadFailure() expected error for server error response")
 	}
@@ -408,7 +410,7 @@ func TestNotifyUploadFailure_ServerError(t *testing.T) {
 
 func TestNotifyUploadFailure_NetworkError(t *testing.T) {
 	setShortRetryDelay(t)
-	err := NotifyUploadFailure("://invalid-url", "test-token", 1, "proj-uuid", 17, "Upload failed")
+	err := NotifyUploadFailure("://invalid-url", "test-token", 1, 17, "Upload failed")
 	if err == nil {
 		t.Error("NotifyUploadFailure() expected error for network failure")
 	}
@@ -427,7 +429,7 @@ func TestNotifyUploadFailure_RetryBehavior(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NotifyUploadFailure(server.URL, "test-token", 1, "proj-uuid", 17, "Upload failed")
+	err := NotifyUploadFailure(server.URL, "test-token", 1, 17, "Upload failed")
 	if err != nil {
 		t.Fatalf("NotifyUploadFailure() unexpected error: %v", err)
 	}
@@ -446,7 +448,7 @@ func TestNotifyUploadFailure_AllRetriesFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NotifyUploadFailure(server.URL, "test-token", 1, "proj-uuid", 17, "Upload failed")
+	err := NotifyUploadFailure(server.URL, "test-token", 1, 17, "Upload failed")
 	if err == nil {
 		t.Error("NotifyUploadFailure() expected error when all retries fail")
 	}
