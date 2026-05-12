@@ -46,7 +46,7 @@ This is a CLI tool for uploading JUnit XML test results to TestNod (testnod.com)
 
 1. Parse CLI flags and validate inputs (`-build-id` is required outside of `-validate` mode — it groups parallel/matrix shards into one logical test run on the server)
 2. Call TestNod API to create a test run; the response includes `project_id`, `test_run_id`, `upload_id`, and a presigned S3 URL
-3. PUT the JUnit XML file to the presigned URL, sending the three `x-amz-meta-project_id` / `x-amz-meta-test_run_id` / `x-amz-meta-upload_id` headers — values must match what the presigner signed, or S3 rejects with `403 SignatureDoesNotMatch`
+3. PUT the JUnit XML file to the presigned URL with `Content-Type: application/xml`. The S3 object metadata (`project_id`, `test_run_id`, `upload_id`) is hoisted into the URL's query string by the presigner — no extra request headers are needed.
 4. On upload failure, notify TestNod via `POST /integrations/test_runs/uploads/{upload_id}/failed` (per-upload, not per-run) with body `{project_id, test_run_id, failure_message}` and the `Testnod-Auth` header
 
 Both API calls and file uploads use retry logic (3 attempts with 1 second delay) via `github.com/avast/retry-go/v4`.

@@ -17,14 +17,6 @@ func setShortRetryDelay(t *testing.T) {
 	t.Cleanup(func() { retryDelay = original })
 }
 
-func testMeta() S3Metadata {
-	return S3Metadata{
-		ProjectID: "ed72d535-b152-45e3-9de0-7d090f902855",
-		TestRunID: 17,
-		UploadID:  1,
-	}
-}
-
 func TestUploadJUnitXmlFile_Success(t *testing.T) {
 	// Create test content
 	testContent := `<?xml version="1.0" encoding="UTF-8"?>
@@ -53,14 +45,10 @@ func TestUploadJUnitXmlFile_Success(t *testing.T) {
 		if r.Header.Get("Content-Type") != "application/xml" {
 			t.Errorf("Expected Content-Type application/xml, got %s", r.Header.Get("Content-Type"))
 		}
-		if got := r.Header.Get("X-Amz-Meta-Project_id"); got != "ed72d535-b152-45e3-9de0-7d090f902855" {
-			t.Errorf("Expected x-amz-meta-project_id to be the project UUID, got %q", got)
-		}
-		if got := r.Header.Get("X-Amz-Meta-Test_run_id"); got != "17" {
-			t.Errorf("Expected x-amz-meta-test_run_id 17, got %q", got)
-		}
-		if got := r.Header.Get("X-Amz-Meta-Upload_id"); got != "1" {
-			t.Errorf("Expected x-amz-meta-upload_id 1, got %q", got)
+		for _, h := range []string{"X-Amz-Meta-Project_id", "X-Amz-Meta-Test_run_id", "X-Amz-Meta-Upload_id"} {
+			if got := r.Header.Get(h); got != "" {
+				t.Errorf("Expected %s to be absent (metadata travels in the presigned URL query string, not headers), got %q", h, got)
+			}
 		}
 
 		// Verify content length is set
@@ -82,7 +70,7 @@ func TestUploadJUnitXmlFile_Success(t *testing.T) {
 	defer server.Close()
 
 	// Test the function
-	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL)
 	if err != nil {
 		t.Fatalf("UploadJUnitXmlFile() unexpected error: %v", err)
 	}
@@ -95,7 +83,7 @@ func TestUploadJUnitXmlFile_FileNotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := UploadJUnitXmlFile("/path/that/does/not/exist.xml", server.URL, testMeta())
+	err := UploadJUnitXmlFile("/path/that/does/not/exist.xml", server.URL)
 	if err == nil {
 		t.Error("UploadJUnitXmlFile() expected error for non-existent file")
 	}
@@ -122,7 +110,7 @@ func TestUploadJUnitXmlFile_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL)
 	if err == nil {
 		t.Error("UploadJUnitXmlFile() expected error for server error response")
 	}
@@ -144,7 +132,7 @@ func TestUploadJUnitXmlFile_NetworkError(t *testing.T) {
 	tmpFile.Close()
 
 	// Use malformed URL to trigger network error without making actual request
-	err = UploadJUnitXmlFile(tmpFile.Name(), "://invalid-url", testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), "://invalid-url")
 	if err == nil {
 		t.Error("UploadJUnitXmlFile() expected error for network failure")
 	}
@@ -177,7 +165,7 @@ func TestUploadJUnitXmlFile_RetryBehavior(t *testing.T) {
 	defer server.Close()
 
 	start := time.Now()
-	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -213,7 +201,7 @@ func TestUploadJUnitXmlFile_AllRetriesFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL)
 	if err == nil {
 		t.Error("UploadJUnitXmlFile() expected error when all retries fail")
 	}
@@ -250,7 +238,7 @@ func TestUploadJUnitXmlFile_EmptyFile(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL)
 	if err != nil {
 		t.Fatalf("UploadJUnitXmlFile() unexpected error for empty file: %v", err)
 	}
@@ -303,7 +291,7 @@ func TestUploadJUnitXmlFile_LargeFile(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL)
 	if err != nil {
 		t.Fatalf("UploadJUnitXmlFile() unexpected error for large file: %v", err)
 	}
@@ -336,7 +324,7 @@ func TestUploadJUnitXmlFile_PermissionDenied(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpFile.Name(), server.URL)
 	if err == nil {
 		t.Error("UploadJUnitXmlFile() expected error for permission denied")
 	}
@@ -356,7 +344,7 @@ func TestUploadJUnitXmlFile_Directory(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err = UploadJUnitXmlFile(tmpDir, server.URL, testMeta())
+	err = UploadJUnitXmlFile(tmpDir, server.URL)
 	if err == nil {
 		t.Error("UploadJUnitXmlFile() expected error for directory")
 	}

@@ -142,12 +142,7 @@ func uploadToTestNod(config Config) {
 
 	fmt.Println("Created test run, uploading JUnit XML file...")
 	debug.Log("uploading file: %s", config.FilePath)
-	uploadMeta := upload.S3Metadata{
-		ProjectID: serverResponse.ProjectID,
-		TestRunID: serverResponse.TestRunID,
-		UploadID:  serverResponse.UploadID,
-	}
-	err = upload.UploadJUnitXmlFile(config.FilePath, serverResponse.PresignedURL, uploadMeta)
+	err = upload.UploadJUnitXmlFile(config.FilePath, serverResponse.PresignedURL)
 
 	if err != nil {
 		fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")

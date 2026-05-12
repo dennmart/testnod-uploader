@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -20,16 +19,7 @@ var (
 	retryDelay = 1 * time.Second
 )
 
-// S3Metadata holds the values for the x-amz-meta-* headers that TestNod's
-// presigned URL is signed against. The PUT must send these exact values
-// or S3 will reject the request with SignatureDoesNotMatch.
-type S3Metadata struct {
-	ProjectID string
-	TestRunID int
-	UploadID  int
-}
-
-func UploadJUnitXmlFile(filePath string, uploadURL string, meta S3Metadata) error {
+func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 	err := retry.Do(
 		func() error {
 			// Open the file for each retry attempt
@@ -54,12 +44,9 @@ func UploadJUnitXmlFile(filePath string, uploadURL string, meta S3Metadata) erro
 
 			req.ContentLength = fileInfo.Size()
 			req.Header.Set("Content-Type", "application/xml")
-			req.Header.Set("x-amz-meta-project_id", meta.ProjectID)
-			req.Header.Set("x-amz-meta-test_run_id", strconv.Itoa(meta.TestRunID))
-			req.Header.Set("x-amz-meta-upload_id", strconv.Itoa(meta.UploadID))
 
 			debug.Log("file: name=%s size=%d bytes", fileInfo.Name(), fileInfo.Size())
-			debug.Log("request: %s content-length=%d project_id=%s test_run_id=%d upload_id=%d", req.Method, req.ContentLength, meta.ProjectID, meta.TestRunID, meta.UploadID)
+			debug.Log("request: %s content-length=%d", req.Method, req.ContentLength)
 			resp, err := httpClient.Do(req)
 			if err != nil {
 				return fmt.Errorf("failed to upload file: %w", err)
