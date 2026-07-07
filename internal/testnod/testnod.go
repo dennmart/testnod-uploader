@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 
 	"testnod-uploader/internal/debug"
 )
@@ -56,7 +56,15 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 
 	var resp *http.Response
 
-	err = retry.Do(
+	err = retry.New(
+		retry.Delay(retryDelay),
+		retry.Attempts(retryAttempts),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(attempt uint, err error) {
+			debug.Log("retry attempt %d: %v", attempt, err)
+			fmt.Println("Could not create test run, retrying...")
+		}),
+	).Do(
 		func() error {
 			req, err := http.NewRequest("POST", uploadURL, bytes.NewBuffer(requestBodyBytes))
 			if err != nil {
@@ -81,13 +89,6 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 
 			return nil
 		},
-		retry.Delay(retryDelay),
-		retry.Attempts(retryAttempts),
-		retry.LastErrorOnly(true),
-		retry.OnRetry(func(attempt uint, err error) {
-			debug.Log("retry attempt %d: %v", attempt, err)
-			fmt.Println("Could not create test run, retrying...")
-		}),
 	)
 
 	if err != nil {
@@ -127,7 +128,15 @@ func NotifyUploadFailure(baseURL string, projectToken string, uploadID int, test
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	err = retry.Do(
+	err = retry.New(
+		retry.Delay(retryDelay),
+		retry.Attempts(retryAttempts),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(attempt uint, err error) {
+			debug.Log("retry attempt %d: %v", attempt, err)
+			fmt.Println("Could not notify TestNod of upload failure, retrying...")
+		}),
+	).Do(
 		func() error {
 			req, err := http.NewRequest("POST", failureURL, bytes.NewBuffer(requestBodyBytes))
 			if err != nil {
@@ -153,13 +162,6 @@ func NotifyUploadFailure(baseURL string, projectToken string, uploadID int, test
 
 			return nil
 		},
-		retry.Delay(retryDelay),
-		retry.Attempts(retryAttempts),
-		retry.LastErrorOnly(true),
-		retry.OnRetry(func(attempt uint, err error) {
-			debug.Log("retry attempt %d: %v", attempt, err)
-			fmt.Println("Could not notify TestNod of upload failure, retrying...")
-		}),
 	)
 
 	return err

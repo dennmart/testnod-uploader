@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/avast/retry-go/v5"
 
 	"testnod-uploader/internal/debug"
 )
@@ -20,7 +20,14 @@ var (
 )
 
 func UploadJUnitXmlFile(filePath string, uploadURL string) error {
-	err := retry.Do(
+	err := retry.New(
+		retry.Delay(retryDelay),
+		retry.Attempts(retryAttempts),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(attempt uint, err error) {
+			debug.Log("retry attempt %d: %v", attempt, err)
+		}),
+	).Do(
 		func() error {
 			// Open the file for each retry attempt
 			file, err := os.Open(filePath)
@@ -63,12 +70,6 @@ func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 			resp.Body.Close()
 			return nil
 		},
-		retry.Delay(retryDelay),
-		retry.Attempts(retryAttempts),
-		retry.LastErrorOnly(true),
-		retry.OnRetry(func(attempt uint, err error) {
-			debug.Log("retry attempt %d: %v", attempt, err)
-		}),
 	)
 
 	return err
