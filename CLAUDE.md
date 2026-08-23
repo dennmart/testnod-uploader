@@ -1,61 +1,34 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+CLI that uploads JUnit XML test results to TestNod (testnod.com). Go, stdlib + `github.com/avast/retry-go/v5` only. The README covers flags, usage, and CI setup — don't duplicate it here.
 
-## Build and Test Commands
+## Commands
 
 ```bash
-# Build the binary
 go build -o testnod-uploader ./cmd/testnod-uploader
-
-# Build with debug logging (prints [DEBUG] lines to stderr)
-go build -tags debug -o testnod-uploader ./cmd/testnod-uploader
-
-# Run with debug logging (without building)
-go run -tags debug ./cmd/testnod-uploader
-
-# Run all tests
+go build -tags debug -o testnod-uploader ./cmd/testnod-uploader   # enables [DEBUG] logging to stderr
 go test ./...
-
-# Run tests for a specific package
-go test ./internal/validation
-go test ./internal/upload
-go test ./internal/testnod
-go test ./cmd/testnod-uploader
-
-# Run a specific test
 go test ./cmd/testnod-uploader -run TestParseFlags
-
-# Run tests with verbose output
-go test -v ./...
 ```
 
-## Project Architecture
+- `internal/debug` is build-tag gated: `debug.Log` is a no-op unless built with `-tags debug`. Its tests must be run both with and without the tag.
+- Tests use `httptest` servers; no network or credentials needed. Run `go test ./...` after every change.
+- `TESTNOD_BASE_URL` overrides the API host (default `https://testnod.com`) for manual testing against a local server.
 
-This is a CLI tool for uploading JUnit XML test results to TestNod (testnod.com). The tool validates JUnit XML files and uploads them via a two-step process.
+## Upload contract (non-obvious, easy to break)
 
-### Package Structure
+1. `POST /integrations/test_runs/upload` with `Project-Token` header → response includes `project_id`, `test_run_id`, `upload_id`, and a presigned S3 URL.
+2. `PUT` the file to the presigned URL with `Content-Type: application/xml` and **no other headers**. The object metadata is already hoisted into the URL query string by the presigner; adding headers (e.g. `x-amz-meta-*`) breaks the signature.
+3. On upload failure, `POST /integrations/test_runs/upload_failed` with `{test_run_id, upload_id, failure_message}` and the same `Project-Token`.
 
-- `cmd/testnod-uploader/` - CLI entry point with flag parsing and orchestration
-- `internal/debug/` - Build-tag-based debug logging (`-tags debug` enables output, no-op otherwise)
-- `internal/testnod/` - TestNod API client for creating test runs (returns presigned upload URL)
-- `internal/upload/` - Handles file upload to the presigned S3 URL
-- `internal/validation/` - JUnit XML validation (checks for valid XML with `<testsuite>` element)
+- Both API calls and the S3 PUT retry 3× with a 1s delay.
+- `-build-id` is required outside `-validate` mode. It groups parallel/matrix shards into one logical test run server-side.
+- This binary owns per-upload state only. Run-level finalization (`/integrations/test_runs/finalize`) is the webapp's job and is called separately from CI — never add it here.
 
-### Upload Flow
+## Compatibility
 
-1. Parse CLI flags and validate inputs (`-build-id` is required outside of `-validate` mode — it groups parallel/matrix shards into one logical test run on the server)
-2. Call TestNod API to create a test run; the response includes `project_id`, `test_run_id`, `upload_id`, and a presigned S3 URL
-3. PUT the JUnit XML file to the presigned URL with `Content-Type: application/xml`. The S3 object metadata (`project_id`, `test_run_id`, `upload_id`) is hoisted into the URL's query string by the presigner — no extra request headers are needed.
-4. On upload failure, notify TestNod via `POST /integrations/test_runs/upload_failed` with body `{test_run_id, upload_id, failure_message}` and the `Project-Token` header (same token used to create the test run)
+CLI flag names are a public interface: the GitHub Action (`testnod/testnod-uploader`) and CircleCI orb documented in `docs/ci-integrations.md` pass them through. Renaming or removing a flag breaks those consumers — add new flags, keep old ones working.
 
-Both API calls and file uploads use retry logic (3 attempts with 1 second delay) via `github.com/avast/retry-go/v4`.
+## Releasing
 
-This binary owns per-upload state only. Run-level finalization is the webapp's job — CI calls `/integrations/test_runs/finalize` separately to aggregate results across all uploads.
-
-### CLI Usage
-
-```bash
-./testnod-uploader -token=<project-token> -build-id=<build-id> [-branch=<branch>] [-commit-sha=<sha>] [-tag=<tag>]... <file.xml>
-./testnod-uploader -validate <file.xml>  # Validate only, no upload (no -build-id needed)
-```
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which cross-compiles six static binaries (`CGO_ENABLED=0`) and uploads them to Cloudflare R2 under both `<version>/` and `latest/`. There is no GitHub Release. `dist/` is gitignored local build output.
