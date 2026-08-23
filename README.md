@@ -125,7 +125,7 @@ This builds binaries for six platforms:
 | OS | Architectures |
 |----|---------------|
 | Linux | amd64, arm64 |
-| macOS | amd64, arm64 |
+| macOS (13 Ventura or later) | amd64, arm64 |
 | Windows | amd64, arm64 |
 
 The workflow generates SHA-256 checksums and a VERSION file, then uploads everything to a Cloudflare R2 bucket. Binaries are stored both under the version path (`testnod-uploader/<version>/`) and under `testnod-uploader/latest/` so the most recent release is always accessible at a stable URL.
