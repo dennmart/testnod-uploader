@@ -145,7 +145,7 @@ func uploadToTestNod(config Config) {
 	err = upload.UploadJUnitXmlFile(config.FilePath, serverResponse.PresignedURL)
 
 	if err != nil {
-		fmt.Println("There was an error uploading the file to TestNod. We've been notified and will look into it. Sorry for the inconvenience.")
+		fmt.Printf("There was an error uploading the file to TestNod: %v\n", err)
 
 		debug.Log("notifying TestNod of upload failure for upload %d (test run %d)", serverResponse.UploadID, serverResponse.TestRunID)
 		notifyErr := testnod.NotifyUploadFailure(
@@ -157,6 +157,9 @@ func uploadToTestNod(config Config) {
 		)
 		if notifyErr != nil {
 			debug.Log("failed to notify TestNod of upload failure: %v", notifyErr)
+			fmt.Println("We could not report this failure to TestNod either. Please try again, or contact support if the issue persists.")
+		} else {
+			fmt.Println("We've been notified and will look into it. Sorry for the inconvenience.")
 		}
 
 		exitBasedOnIgnoreFailures(config.IgnoreFailures)

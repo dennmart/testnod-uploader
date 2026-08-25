@@ -234,7 +234,12 @@ func TestCreateTestRun_InvalidRequestBody(t *testing.T) {
 	// This should cause JSON marshaling to fail
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(SuccessfulServerResponse{ID: 123})
+		json.NewEncoder(w).Encode(SuccessfulServerResponse{
+			ID:           123,
+			TestRunID:    17,
+			UploadID:     1,
+			PresignedURL: "https://s3.amazonaws.com/upload",
+		})
 	}))
 	defer server.Close()
 
@@ -481,5 +486,105 @@ func TestCreateTestRun_EmptyResponse(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to decode response body") {
 		t.Errorf("Expected error to contain 'failed to decode response body', got: %v", err)
+	}
+}
+
+func TestCreateTestRun_ClientErrorNotRetried(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error_message":"Invalid token provided"}`))
+	}))
+	defer server.Close()
+
+	_, err := CreateTestRun(server.URL, "invalid-token", CreateTestRunRequest{})
+	if err == nil {
+		t.Fatal("CreateTestRun() expected error for 401 response")
+	}
+	if !strings.Contains(err.Error(), "401 Unauthorized") {
+		t.Errorf("Expected error to contain '401 Unauthorized', got: %v", err)
+	}
+	if attemptCount != 1 {
+		t.Errorf("Expected 1 attempt for a 4xx response, got %d", attemptCount)
+	}
+}
+
+func TestCreateTestRun_RateLimitIsRetried(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	_, err := CreateTestRun(server.URL, "test-token", CreateTestRunRequest{})
+	if err == nil {
+		t.Fatal("CreateTestRun() expected error for 429 response")
+	}
+	if attemptCount != 3 {
+		t.Errorf("Expected 3 attempts for a 429 response, got %d", attemptCount)
+	}
+}
+
+func TestCreateTestRun_ServerErrorIsRetried(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	_, err := CreateTestRun(server.URL, "test-token", CreateTestRunRequest{})
+	if err == nil {
+		t.Fatal("CreateTestRun() expected error for 500 response")
+	}
+	if attemptCount != 3 {
+		t.Errorf("Expected 3 attempts for a 5xx response, got %d", attemptCount)
+	}
+}
+
+func TestCreateTestRun_IncompleteResponse(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing presigned URL",
+			body: `{"id":123,"test_run_id":17,"upload_id":1}`,
+		},
+		{
+			name: "missing upload ID",
+			body: `{"id":123,"test_run_id":17,"presigned_url":"https://s3.amazonaws.com/upload"}`,
+		},
+		{
+			name: "missing test run ID",
+			body: `{"id":123,"upload_id":1,"presigned_url":"https://s3.amazonaws.com/upload"}`,
+		},
+		{
+			name: "no recognized fields",
+			body: `{"ok":true}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusCreated)
+				w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			_, err := CreateTestRun(server.URL, "test-token", CreateTestRunRequest{})
+			if err == nil {
+				t.Fatal("CreateTestRun() expected error for incomplete response body")
+			}
+			if !strings.Contains(err.Error(), "incomplete response from server") {
+				t.Errorf("Expected error to contain 'incomplete response from server', got: %v", err)
+			}
+		})
 	}
 }

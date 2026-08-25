@@ -84,7 +84,13 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 
 			if resp.StatusCode != http.StatusCreated {
 				resp.Body.Close()
-				return fmt.Errorf("received non-OK response: %s", resp.Status)
+				statusErr := fmt.Errorf("received non-OK response: %s", resp.Status)
+
+				if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+					return retry.Unrecoverable(statusErr)
+				}
+
+				return statusErr
 			}
 
 			return nil
@@ -106,6 +112,13 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 	}
 
 	debug.Log("response body: id=%d project=%s test_run_id=%d upload_id=%d test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.Project, successfulServerResponse.TestRunID, successfulServerResponse.UploadID, successfulServerResponse.TestRunURL)
+
+	// The upload itself only needs the presigned URL, but the failure callback
+	// later is keyed on the IDs.
+	if successfulServerResponse.PresignedURL == "" || successfulServerResponse.UploadID == 0 || successfulServerResponse.TestRunID == 0 {
+		return SuccessfulServerResponse{}, fmt.Errorf("incomplete response from server: missing presigned URL, upload ID, or test run ID")
+	}
+
 	return successfulServerResponse, nil
 }
 
