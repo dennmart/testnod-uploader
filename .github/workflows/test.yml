@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 jobs:
   test:
@@ -16,5 +17,13 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Vet
+        run: |
+          go vet ./...
+          go vet -tags debug ./...
+
       - name: Run tests
         run: go test ./... -v
+
+      - name: Run tests (debug build)
+        run: go test -tags debug ./... -v
