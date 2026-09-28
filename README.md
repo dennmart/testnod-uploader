@@ -4,7 +4,7 @@ A CLI tool for uploading JUnit XML test results to [TestNod](https://testnod.com
 
 ## Installation
 
-Build from source (requires Go 1.27.0+):
+Build from source (requires Go 1.27.1+):
 
 ```bash
 go build -o testnod-uploader ./cmd/testnod-uploader
