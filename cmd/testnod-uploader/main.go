@@ -38,10 +38,7 @@ func main() {
 		exitBasedOnIgnoreFailures(config.IgnoreFailures)
 	}
 
-	config.BaseURL = os.Getenv("TESTNOD_BASE_URL")
-	if config.BaseURL == "" {
-		config.BaseURL = defaultBaseURL
-	}
+	config.BaseURL = baseURL()
 
 	redactedToken := ""
 	if len(config.Token) >= 4 {
@@ -94,6 +91,17 @@ func parseFlags() (Config, error) {
 	}
 
 	return config, nil
+}
+
+// baseURL returns the TestNod host from TESTNOD_BASE_URL, falling back to the
+// production host. Trailing slashes are trimmed so API paths can be appended
+// directly.
+func baseURL() string {
+	url := strings.TrimRight(os.Getenv("TESTNOD_BASE_URL"), "/")
+	if url == "" {
+		return defaultBaseURL
+	}
+	return url
 }
 
 func validateOnly(config Config) {

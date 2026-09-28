@@ -255,9 +255,9 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "valid config for upload",
 			config: Config{
-				Token:     "abc123",
-				FilePath:  "test.xml",
-				BaseURL: "https://example.com",
+				Token:    "abc123",
+				FilePath: "test.xml",
+				BaseURL:  "https://example.com",
 			},
 			expectValid: true,
 		},
@@ -272,15 +272,15 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "invalid config - missing token for upload",
 			config: Config{
-				FilePath:  "test.xml",
-				BaseURL: "https://example.com",
+				FilePath: "test.xml",
+				BaseURL:  "https://example.com",
 			},
 			expectValid: false,
 		},
 		{
 			name: "invalid config - missing file path",
 			config: Config{
-				Token:     "abc123",
+				Token:   "abc123",
 				BaseURL: "https://example.com",
 			},
 			expectValid: false,
@@ -373,6 +373,29 @@ func TestParseFlagsEdgeCases(t *testing.T) {
 
 			if err != nil && tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
 				t.Errorf("parseFlags() error = %v, should contain %v", err, tt.errContains)
+			}
+		})
+	}
+}
+
+func TestBaseURL(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want string
+	}{
+		{name: "unset uses default", env: "", want: defaultBaseURL},
+		{name: "custom host", env: "http://localhost:3000", want: "http://localhost:3000"},
+		{name: "trailing slash trimmed", env: "http://localhost:3000/", want: "http://localhost:3000"},
+		{name: "multiple trailing slashes trimmed", env: "http://localhost:3000//", want: "http://localhost:3000"},
+		{name: "only slashes uses default", env: "/", want: defaultBaseURL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TESTNOD_BASE_URL", tt.env)
+			if got := baseURL(); got != tt.want {
+				t.Errorf("baseURL() = %q, want %q", got, tt.want)
 			}
 		})
 	}
