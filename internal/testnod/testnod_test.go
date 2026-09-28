@@ -588,3 +588,42 @@ func TestCreateTestRun_IncompleteResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestNotifyUploadFailure_ClientErrorNotRetried(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	err := NotifyUploadFailure(server.URL, "invalid-token", 1, 17, "Upload failed")
+	if err == nil {
+		t.Fatal("NotifyUploadFailure() expected error for 401 response")
+	}
+	if !strings.Contains(err.Error(), "401 Unauthorized") {
+		t.Errorf("Expected error to contain '401 Unauthorized', got: %v", err)
+	}
+	if attemptCount != 1 {
+		t.Errorf("Expected 1 attempt for a 4xx response, got %d", attemptCount)
+	}
+}
+
+func TestNotifyUploadFailure_RateLimitIsRetried(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	err := NotifyUploadFailure(server.URL, "test-token", 1, 17, "Upload failed")
+	if err == nil {
+		t.Fatal("NotifyUploadFailure() expected error for 429 response")
+	}
+	if attemptCount != 3 {
+		t.Errorf("Expected 3 attempts for a 429 response, got %d", attemptCount)
+	}
+}

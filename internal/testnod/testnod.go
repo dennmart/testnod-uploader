@@ -170,7 +170,13 @@ func NotifyUploadFailure(baseURL string, projectToken string, uploadID int, test
 			debug.Log("response: status=%d", resp.StatusCode)
 
 			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("received non-OK response: %s", resp.Status)
+				statusErr := fmt.Errorf("received non-OK response: %s", resp.Status)
+
+				if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+					return retry.Unrecoverable(statusErr)
+				}
+
+				return statusErr
 			}
 
 			return nil

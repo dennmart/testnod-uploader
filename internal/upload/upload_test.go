@@ -257,7 +257,7 @@ func TestUploadJUnitXmlFile_LargeFile(t *testing.T) {
 <testsuites>
 	<testsuite name="test1" tests="100" failures="0" errors="0" time="1.0">`
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		largeContent += `
 		<testcase name="test_` + strings.Repeat("a", 100) + `" classname="test.example" time="0.001"/>`
 	}
