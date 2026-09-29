@@ -1,13 +1,13 @@
 ---
 name: release
-description: Cut a new testnod-uploader version — pick the next semver tag, run pre-release gates, create a signed tag, and push it only when every gate passes and the user confirms. Use when the user asks to release, bump the version, tag, or ship a new build.
+description: Cut a new testnod-uploader version — pick the next semver tag, run pre-release gates, create a signed tag, push it only when every gate passes and the user confirms, then watch the release workflow and publish the GitHub Release. Use when the user asks to release, bump the version, tag, or ship a new build.
 argument-hint: "[patch|minor|major|vX.Y.Z]"
 disable-model-invocation: true
 ---
 
 # Release testnod-uploader
 
-The version lives **only** in the git tag — there is no version constant, changelog, or GitHub Release to update. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds six binaries and uploads them to R2 under both `<version>/` **and `latest/`**. Every CI pipeline pulling `latest/` gets the new binary on its next run, and there's no rollback short of cutting another release. Treat the push as a production deploy.
+The version lives in the git tag — there is no version constant or changelog to update. Each version also gets a GitHub Release carrying its notes (step 7); the binaries live on R2, not on the release. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds six binaries and uploads them to R2 under both `<version>/` **and `latest/`**. Every CI pipeline pulling `latest/` gets the new binary on its next run, and there's no rollback short of cutting another release. Treat the push as a production deploy.
 
 Requested bump: `$ARGUMENTS` (if empty, recommend one in step 3).
 
@@ -77,7 +77,7 @@ Show the user one summary:
 - `$LAST` → new version, and the commit SHA to be tagged
 - The commits included (one line each)
 - The result of every gate, with any CONFIRM items called out
-- Draft release notes for the user to keep for their own records. Keep them short and user-facing: lead with anything a CI user has to change in how they invoke the binary, say compatibility breaks plainly, leave out server-side and implementation details, and describe doc changes only as "documentation updates".
+- Draft release notes. They become the GitHub Release body in step 7. Keep them short and user-facing: lead with anything a CI user has to change in how they invoke the binary, say compatibility breaks plainly, leave out server-side and implementation details, and describe doc changes only as "documentation updates".
 
 Then ask with AskUserQuestion: **Create and push tag** / **Create tag locally only** / **Cancel**. Prior approval in the conversation doesn't count. Ask every time.
 
@@ -98,6 +98,23 @@ Push **only that tag**. Never use `--tags` (it would push stray local tags) and 
 
 ## 6. After pushing
 
-- Link the workflow run: `gh run list --workflow release.yml --limit 1` (if `gh` is available).
+This step and step 7 need `gh`, installed and authenticated (`gh auth status`). Without it, give the user the Actions URL (`https://github.com/<owner>/<repo>/actions/workflows/release.yml`), the release notes, and the step 7 command to run themselves, then stop.
+
+- Find the run for the tag and link it: `gh run list --workflow release.yml --branch vX.Y.Z --limit 1`. It can take a few seconds to show up after the push.
+- Watch it to completion in the background: `gh run watch <run-id> --exit-status`, then `gh run view <run-id>`. Tell the user the result either way.
 - Tell the user the release writes to `latest/`. If the run fails partway, `latest/` may contain a mix of old and new binaries. Recover by fixing forward with a new patch release, never by re-pushing the same tag.
 - Don't download or smoke-test the published binaries yourself. Hand verification back to the user.
+
+## 7. GitHub Release
+
+Only once the release workflow has **passed**. If it failed, don't create a release for that tag; fix forward instead. Skip this step if the tag was only created locally.
+
+1. Read the current latest release as the template: `gh release view --json tagName,name,body`. Match its format: the title is the bare version (`vX.Y.Z`), the body is a short bullet list, and no assets are attached.
+2. Draft the notes in that format from the step 4 draft, following the same rules (user-facing only, compatibility breaks stated plainly, doc changes only as "documentation updates"). Write them to a file in the scratchpad, not the repo.
+3. Show the notes and ask with AskUserQuestion: **Publish release** / **Edit notes** / **Skip**. A GitHub Release is public, so ask even though the tag push was already approved.
+4. Publish it and mark it latest:
+   ```bash
+   gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes-file <notes.md> --latest
+   gh release list --limit 3
+   ```
+   Confirm `vX.Y.Z` shows as `Latest`, and link the release URL in the final report.

@@ -31,4 +31,4 @@ CLI flag names are a public interface: the GitHub Action (`testnod/testnod-uploa
 
 ## Releasing
 
-Pushing a `v*` tag triggers `.github/workflows/release.yml`, which cross-compiles six static binaries (`CGO_ENABLED=0`) and uploads them to Cloudflare R2 under both `<version>/` and `latest/`. There is no GitHub Release. `dist/` is gitignored local build output.
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which cross-compiles six static binaries (`CGO_ENABLED=0`) and uploads them to Cloudflare R2 under both `<version>/` and `latest/`. Once the workflow passes, a GitHub Release is created for the tag (notes only, no assets) and marked latest; the `/release` skill handles this. `dist/` is gitignored local build output.
