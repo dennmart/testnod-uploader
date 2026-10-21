@@ -58,6 +58,7 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 
 	err = retry.New(
 		retry.Delay(retryDelay),
+		retry.DelayType(retry.FixedDelay),
 		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {
@@ -143,6 +144,7 @@ func NotifyUploadFailure(baseURL string, projectToken string, uploadID int, test
 
 	err = retry.New(
 		retry.Delay(retryDelay),
+		retry.DelayType(retry.FixedDelay),
 		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {

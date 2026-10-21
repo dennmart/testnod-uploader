@@ -22,6 +22,7 @@ var (
 func UploadJUnitXmlFile(filePath string, uploadURL string) error {
 	err := retry.New(
 		retry.Delay(retryDelay),
+		retry.DelayType(retry.FixedDelay),
 		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {
