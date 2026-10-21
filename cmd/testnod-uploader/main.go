@@ -25,6 +25,7 @@ type Config struct {
 	CommitSHA      string
 	RunURL         string
 	BuildID        string
+	Retry          bool
 	IgnoreFailures bool
 	BaseURL        string
 	Tags           uploadTagsFlag
@@ -44,8 +45,8 @@ func main() {
 	if len(config.Token) >= 4 {
 		redactedToken = config.Token[:4] + "..."
 	}
-	debug.Log("config: file=%s branch=%q commit-sha=%q tags=%s base-url=%s token=%s",
-		config.FilePath, config.Branch, config.CommitSHA, config.Tags.String(), config.BaseURL, redactedToken)
+	debug.Log("config: file=%s branch=%q commit-sha=%q tags=%s retry=%t base-url=%s token=%s",
+		config.FilePath, config.Branch, config.CommitSHA, config.Tags.String(), config.Retry, config.BaseURL, redactedToken)
 
 	if config.ValidateFile {
 		validateOnly(config)
@@ -65,6 +66,7 @@ func parseFlags() (Config, error) {
 	flag.StringVar(&config.CommitSHA, "commit-sha", "", "The commit SHA used for this test run")
 	flag.StringVar(&config.RunURL, "run-url", "", "The URL to the CI/CD run")
 	flag.StringVar(&config.BuildID, "build-id", "", "The build identifier for the CI/CD run")
+	flag.BoolVar(&config.Retry, "retry", false, "Marks this file as a rerun of tests that failed earlier in the same build")
 	flag.BoolVar(&config.IgnoreFailures, "ignore-failures", false, "Always return an exit code of 0 even if there are errors")
 
 	flag.Var(&tags, "tag", "Add a tag to this test run (can be repeated)")
@@ -127,7 +129,8 @@ func uploadToTestNod(config Config) {
 	fmt.Printf("%s is a valid JUnit XML file. Creating test run...\n", config.FilePath)
 
 	uploadRequest := testnod.CreateTestRunRequest{
-		Tags: config.Tags,
+		Tags:  config.Tags,
+		Retry: config.Retry,
 		TestRun: testnod.TestRun{
 			Metadata: testnod.TestRunMetadata{
 				Branch:    config.Branch,

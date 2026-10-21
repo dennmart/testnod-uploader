@@ -31,7 +31,27 @@ func TestCreateTestRunRequest_JSONMarshal(t *testing.T) {
 		t.Fatalf("Failed to marshal CreateTestRunRequest: %v", err)
 	}
 
-	expected := `{"tags":[{"value":"feature"},{"value":"backend"}],"test_run":{"metadata":{"branch":"main","commit_sha":"abc123","run_url":"https://example.com/run/1","build_id":"build-123"}}}`
+	expected := `{"tags":[{"value":"feature"},{"value":"backend"}],"test_run":{"metadata":{"branch":"main","commit_sha":"abc123","run_url":"https://example.com/run/1","build_id":"build-123"}},"retry":false}`
+	if string(jsonData) != expected {
+		t.Errorf("JSON marshal mismatch.\nGot:      %s\nExpected: %s", string(jsonData), expected)
+	}
+}
+
+func TestCreateTestRunRequest_JSONMarshalRetry(t *testing.T) {
+	request := CreateTestRunRequest{
+		Tags: []Tag{},
+		TestRun: TestRun{
+			Metadata: TestRunMetadata{BuildID: "build-123"},
+		},
+		Retry: true,
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("Failed to marshal CreateTestRunRequest: %v", err)
+	}
+
+	expected := `{"tags":[],"test_run":{"metadata":{"branch":"","commit_sha":"","run_url":"","build_id":"build-123"}},"retry":true}`
 	if string(jsonData) != expected {
 		t.Errorf("JSON marshal mismatch.\nGot:      %s\nExpected: %s", string(jsonData), expected)
 	}
@@ -85,7 +105,8 @@ func TestCreateTestRun_Success(t *testing.T) {
 		}
 
 		expectedRequest := CreateTestRunRequest{
-			Tags: []Tag{{Value: "test"}},
+			Tags:  []Tag{{Value: "test"}},
+			Retry: true,
 			TestRun: TestRun{
 				Metadata: TestRunMetadata{
 					Branch:    "main",
@@ -116,7 +137,8 @@ func TestCreateTestRun_Success(t *testing.T) {
 
 	// Test the function
 	request := CreateTestRunRequest{
-		Tags: []Tag{{Value: "test"}},
+		Tags:  []Tag{{Value: "test"}},
+		Retry: true,
 		TestRun: TestRun{
 			Metadata: TestRunMetadata{
 				Branch:    "main",

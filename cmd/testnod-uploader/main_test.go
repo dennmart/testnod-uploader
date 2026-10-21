@@ -90,6 +90,17 @@ func TestParseFlags(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "with retry",
+			args: []string{"cmd", "-token=abc123", "-build-id=build-1", "-retry", "test.xml"},
+			wantConfig: Config{
+				Token:    "abc123",
+				BuildID:  "build-1",
+				Retry:    true,
+				FilePath: "test.xml",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -137,6 +148,9 @@ func TestParseFlags(t *testing.T) {
 				}
 				if got.BuildID != tt.wantConfig.BuildID {
 					t.Errorf("parseFlags() BuildID = %v, want %v", got.BuildID, tt.wantConfig.BuildID)
+				}
+				if got.Retry != tt.wantConfig.Retry {
+					t.Errorf("parseFlags() Retry = %v, want %v", got.Retry, tt.wantConfig.Retry)
 				}
 				if got.FilePath != tt.wantConfig.FilePath {
 					t.Errorf("parseFlags() FilePath = %v, want %v", got.FilePath, tt.wantConfig.FilePath)

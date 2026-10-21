@@ -33,6 +33,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are available
 | `-run-url` | No | URL to the CI/CD run |
 | `-build-id` | Yes (unless `-validate`) | Build identifier for the CI/CD run. Shards of one build (parallel runners, matrix jobs) that share a build ID are grouped into one logical test run. |
 | `-tag` | No | Tag for the test run (repeatable) |
+| `-retry` | No | Mark this file as a rerun of tests that failed earlier in the same build. Tests that pass in it replace their earlier failures and are recorded as passed on retry. Upload it with the same `-build-id` as the original results. |
 | `-ignore-failures` | No | Always exit 0, even if upload fails |
 
 ### Examples
@@ -54,6 +55,10 @@ Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are available
   -tag=integration \
   -tag=backend \
   junit_results.xml
+
+# Upload a rerun of failed tests (e.g. RSpec --only-failures) to the same build
+./testnod-uploader -token=abc123 -build-id=build-456 results.xml
+./testnod-uploader -token=abc123 -build-id=build-456 -retry results-retry.xml
 
 # Don't fail the CI build if upload has issues
 ./testnod-uploader -token=abc123 -build-id=build-456 -ignore-failures junit_results.xml
@@ -99,7 +104,7 @@ go test ./cmd/testnod-uploader -run TestParseFlags
 
 1. Parse CLI flags and validate inputs (`-build-id` is required for uploads — shards with the same build ID are aggregated into one test run server-side)
 2. Validate the JUnit XML file (check for well-formed XML with a `<testsuite>` or `<testsuites>` element)
-3. POST to the TestNod API to create a test run — the response includes the presigned S3 upload URL and the identifiers (`project_id`, `test_run_id`, `upload_id`) needed for the failure callback
+3. POST to the TestNod API to create a test run (including the `retry` flag, so TestNod knows whether this file is a rerun of earlier failures) — the response includes the presigned S3 upload URL and the identifiers (`project_id`, `test_run_id`, `upload_id`) needed for the failure callback
 4. PUT the XML file to the presigned URL with `Content-Type: application/xml` — the object metadata is encoded in the URL's query string by the presigner, so no extra headers are needed
 5. If the PUT fails, notify TestNod via the per-upload failure callback (`/integrations/test_runs/upload_failed`) so the upload row is marked failed without poisoning the whole run
 

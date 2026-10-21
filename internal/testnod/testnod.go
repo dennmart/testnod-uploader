@@ -15,6 +15,7 @@ import (
 type CreateTestRunRequest struct {
 	Tags    []Tag   `json:"tags"`
 	TestRun TestRun `json:"test_run"`
+	Retry   bool    `json:"retry"`
 }
 
 type TestRun struct {
