@@ -10,7 +10,7 @@ Build from source (requires Go 1.27.3+):
 go build -o testnod-uploader ./cmd/testnod-uploader
 ```
 
-Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are available from the release workflow.
+Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are attached to each [GitHub Release](https://github.com/dennmart/testnod-uploader/releases).
 
 ## Usage
 
@@ -133,7 +133,7 @@ This builds binaries for six platforms:
 | macOS (13 Ventura or later) | amd64, arm64 |
 | Windows | amd64, arm64 |
 
-The workflow generates SHA-256 checksums and a VERSION file, then uploads everything to a Cloudflare R2 bucket. Binaries are stored both under the version path (`testnod-uploader/<version>/`) and under `testnod-uploader/latest/` so the most recent release is always accessible at a stable URL.
+The workflow generates SHA-256 checksums and a VERSION file, then uploads everything to a Cloudflare R2 bucket. Binaries are stored both under the version path (`testnod-uploader/<version>/`) and under `testnod-uploader/latest/` so the most recent release is always accessible at a stable URL. Finally, it creates a draft GitHub Release for the tag with the binaries and `checksums.txt` attached, which is published once release notes are added.
 
 **Required repository secrets for releases:**
 

@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Release testnod-uploader
 
-The version lives in the git tag — there is no version constant or changelog to update. Each version also gets a GitHub Release carrying its notes (step 7); the binaries live on R2, not on the release. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds six binaries and uploads them to R2 under both `<version>/` **and `latest/`**. Every CI pipeline pulling `latest/` gets the new binary on its next run, and there's no rollback short of cutting another release. Treat the push as a production deploy.
+The version lives in the git tag — there is no version constant or changelog to update. Each version also gets a GitHub Release carrying its notes (step 7). Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds six binaries, uploads them to R2 under both `<version>/` **and `latest/`**, and then creates a **draft** GitHub Release for the tag with the binaries and `checksums.txt` attached. Step 7 adds the notes and publishes that draft. Every CI pipeline pulling `latest/` gets the new binary on its next run, and there's no rollback short of cutting another release. Treat the push as a production deploy.
 
 Requested bump: `$ARGUMENTS` (if empty, recommend one in step 3).
 
@@ -107,14 +107,15 @@ This step and step 7 need `gh`, installed and authenticated (`gh auth status`). 
 
 ## 7. GitHub Release
 
-Only once the release workflow has **passed**. If it failed, don't create a release for that tag; fix forward instead. Skip this step if the tag was only created locally.
+Only once the release workflow has **passed**. If it failed, don't publish a release for that tag; fix forward instead. A run that failed in its last step may have left a draft release with some assets attached. Check with `gh release list --limit 3`; if a draft for `vX.Y.Z` exists, tell the user and ask before deleting it (`gh release delete vX.Y.Z --yes`). Skip this step if the tag was only created locally.
 
-1. Read the current latest release as the template: `gh release view --json tagName,name,body`. Match its format: the title is the bare version (`vX.Y.Z`), the body is a short bullet list, and no assets are attached.
-2. Draft the notes in that format from the step 4 draft, following the same rules (user-facing only, compatibility breaks stated plainly, doc changes only as "documentation updates"). Write them to a file in the scratchpad, not the repo.
-3. Show the notes and ask with AskUserQuestion: **Publish release** / **Edit notes** / **Skip**. A GitHub Release is public, so ask even though the tag push was already approved.
-4. Publish it and mark it latest:
+1. Confirm the workflow's draft exists and has the six binaries plus `checksums.txt`: `gh release view vX.Y.Z --json isDraft,assets --jq '{isDraft, assets: [.assets[].name]}'`. If it's missing or incomplete, STOP and tell the user; don't create a release without the assets.
+2. Read the current latest release as the template: `gh release view --json tagName,name,body`. Match its format: the title is the bare version (`vX.Y.Z`) and the body is a short bullet list. Releases up to v0.1.0 have no assets; that's expected.
+3. Draft the notes in that format from the step 4 draft, following the same rules (user-facing only, compatibility breaks stated plainly, doc changes only as "documentation updates"). Write them to a file in the scratchpad, not the repo.
+4. Show the notes and ask with AskUserQuestion: **Publish release** / **Edit notes** / **Skip**. A GitHub Release is public, so ask even though the tag push was already approved. On **Skip**, the draft stays unpublished; tell the user it's there.
+5. Add the notes to the workflow's draft, publish it, and mark it latest. Use `edit`, not `create`: the draft already exists for this tag, so `create` would fail.
    ```bash
-   gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes-file <notes.md> --latest
+   gh release edit vX.Y.Z --title vX.Y.Z --notes-file <notes.md> --draft=false --latest
    gh release list --limit 3
    ```
    Confirm `vX.Y.Z` shows as `Latest`, and link the release URL in the final report.

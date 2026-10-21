@@ -11,13 +11,18 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
+          cache: false
 
       - name: Get tag version
         id: version
@@ -67,3 +72,15 @@ jobs:
             r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/${{ env.APP_NAME }}-windows-arm64.exe --file dist/${{ env.APP_NAME }}-windows-arm64.exe --remote
             r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/VERSION --file dist/VERSION --remote
             r2 object put ${{ secrets.R2_BUCKET }}/${{ env.APP_NAME }}/latest/checksums.txt --file dist/checksums.txt --remote
+
+      # Draft only: the /release skill adds the notes and publishes it.
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "${{ steps.version.outputs.VERSION }}" \
+            --draft --verify-tag \
+            --title "${{ steps.version.outputs.VERSION }}" \
+            --notes "" \
+            dist/${{ env.APP_NAME }}-* dist/checksums.txt
