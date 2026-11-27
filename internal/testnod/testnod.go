@@ -35,7 +35,7 @@ type TestRunMetadata struct {
 
 type SuccessfulServerResponse struct {
 	ID           int    `json:"id"`
-	Project      string `json:"project"`
+	ProjectID    string `json:"project_id"`
 	TestRunID    int    `json:"test_run_id"`
 	UploadID     int    `json:"upload_id"`
 	TestRunURL   string `json:"test_run_url"`
@@ -113,7 +113,7 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 		return SuccessfulServerResponse{}, fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	debug.Log("response body: id=%d project=%s test_run_id=%d upload_id=%d test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.Project, successfulServerResponse.TestRunID, successfulServerResponse.UploadID, successfulServerResponse.TestRunURL)
+	debug.Log("response body: id=%d project_id=%s test_run_id=%d upload_id=%d test_run_url=%s", successfulServerResponse.ID, successfulServerResponse.ProjectID, successfulServerResponse.TestRunID, successfulServerResponse.UploadID, successfulServerResponse.TestRunURL)
 
 	// The upload itself only needs the presigned URL, but the failure callback
 	// later is keyed on the IDs.

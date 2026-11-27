@@ -58,8 +58,7 @@ func TestCreateTestRunRequest_JSONMarshalRetry(t *testing.T) {
 }
 
 func TestSuccessfulServerResponse_JSONUnmarshal(t *testing.T) {
-	// project_id may still appear in the webapp response; ensure it doesn't break unmarshaling.
-	jsonData := `{"id":123,"project":"test-project","project_id":"ed72d535-b152-45e3-9de0-7d090f902855","test_run_id":17,"upload_id":1,"test_run_url":"https://example.com/test/123","presigned_url":"https://s3.amazonaws.com/upload"}`
+	jsonData := `{"id":123,"project_id":"ed72d535-b152-45e3-9de0-7d090f902855","test_run_id":17,"upload_id":1,"test_run_url":"https://example.com/test/123","presigned_url":"https://s3.amazonaws.com/upload"}`
 
 	var response SuccessfulServerResponse
 	err := json.Unmarshal([]byte(jsonData), &response)
@@ -69,7 +68,7 @@ func TestSuccessfulServerResponse_JSONUnmarshal(t *testing.T) {
 
 	expected := SuccessfulServerResponse{
 		ID:           123,
-		Project:      "test-project",
+		ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 		TestRunID:    17,
 		UploadID:     1,
 		TestRunURL:   "https://example.com/test/123",
@@ -125,7 +124,7 @@ func TestCreateTestRun_Success(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		response := SuccessfulServerResponse{
 			ID:           123,
-			Project:      "test-project",
+			ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 			TestRunID:    17,
 			UploadID:     1,
 			TestRunURL:   "https://example.com/test/123",
@@ -156,7 +155,7 @@ func TestCreateTestRun_Success(t *testing.T) {
 
 	expected := SuccessfulServerResponse{
 		ID:           123,
-		Project:      "test-project",
+		ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 		TestRunID:    17,
 		UploadID:     1,
 		TestRunURL:   "https://example.com/test/123",
@@ -288,7 +287,7 @@ func TestCreateTestRun_RetryBehavior(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(SuccessfulServerResponse{
 			ID:           123,
-			Project:      "test-project",
+			ProjectID:    "ed72d535-b152-45e3-9de0-7d090f902855",
 			TestRunID:    17,
 			UploadID:     1,
 			TestRunURL:   "https://example.com/test/123",
