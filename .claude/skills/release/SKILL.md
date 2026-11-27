@@ -77,7 +77,9 @@ Show the user one summary:
 - `$LAST` → new version, and the commit SHA to be tagged
 - The commits included (one line each)
 - The result of every gate, with any CONFIRM items called out
-- Draft release notes. They become the GitHub Release body in step 7. Keep them short and user-facing: lead with anything a CI user has to change in how they invoke the binary, say compatibility breaks plainly, leave out server-side and implementation details, and describe doc changes only as "documentation updates".
+- Draft release notes. They become the GitHub Release body in step 7. Keep them short and user-facing: lead with anything a CI user has to change in how they invoke the binary, say compatibility breaks plainly, leave out server-side and implementation details, and describe doc changes only as "documentation updates". Also:
+  - List only what changed. Never add a bullet saying that flags, invocation, or usage are unchanged.
+  - Don't include examples ("for example", "such as", "e.g.", or a parenthetical case) unless the user explicitly asks for one. State the change itself.
 
 Then ask with AskUserQuestion: **Create and push tag** / **Create tag locally only** / **Cancel**. Prior approval in the conversation doesn't count. Ask every time.
 
@@ -111,7 +113,7 @@ Only once the release workflow has **passed**. If it failed, don't publish a rel
 
 1. Confirm the workflow's draft exists and has the six binaries plus `checksums.txt`: `gh release view vX.Y.Z --json isDraft,assets --jq '{isDraft, assets: [.assets[].name]}'`. If it's missing or incomplete, STOP and tell the user; don't create a release without the assets.
 2. Read the current latest release as the template: `gh release view --json tagName,name,body`. Match its format: the title is the bare version (`vX.Y.Z`) and the body is a short bullet list. Releases up to v0.1.0 have no assets; that's expected.
-3. Draft the notes in that format from the step 4 draft, following the same rules (user-facing only, compatibility breaks stated plainly, doc changes only as "documentation updates"). Write them to a file in the scratchpad, not the repo.
+3. Draft the notes in that format from the step 4 draft, following the same rules (user-facing only, compatibility breaks stated plainly, doc changes only as "documentation updates", no "unchanged" bullets, no examples unless asked). Write them to a file in the scratchpad, not the repo.
 4. Show the notes and ask with AskUserQuestion: **Publish release** / **Edit notes** / **Skip**. A GitHub Release is public, so ask even though the tag push was already approved. On **Skip**, the draft stays unpublished; tell the user it's there.
 5. Add the notes to the workflow's draft, publish it, and mark it latest. Use `edit`, not `create`: the draft already exists for this tag, so `create` would fail.
    ```bash
