@@ -31,7 +31,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are attached 
 | `-branch` | No | Branch name to associate with the test run |
 | `-commit-sha` | No | Commit SHA to associate with the test run |
 | `-run-url` | No | URL to the CI/CD run |
-| `-build-id` | Yes (unless `-validate`) | Build identifier for the CI/CD run. Shards of one build (parallel runners, matrix jobs) that share a build ID are grouped into one logical test run. |
+| `-build-id` | Yes (unless `-validate`) | Build identifier for the CI/CD run. Shards of one build (parallel runners, matrix jobs) that share a build ID are grouped into one logical test run. Each build ID counts as one test run toward your plan's monthly limit, so give shards their own build IDs only if you want them as separate runs. See [Plans and billing](https://testnod.com/docs/administration/plans-and-billing). |
 | `-tag` | No | Tag for the test run (repeatable) |
 | `-retry` | No | Mark this file as a rerun of tests that failed earlier in the same build. Tests that pass in it replace their earlier failures and are recorded as passed on retry. Upload it with the same `-build-id` as the original results. |
 | `-ignore-failures` | No | Always exit 0, even if upload fails |
