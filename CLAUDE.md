@@ -27,7 +27,7 @@ go test ./cmd/testnod-uploader -run TestParseFlags
 
 ## Compatibility
 
-CLI flag names are a public interface: the GitHub Action (`testnod/testnod-uploader`) and CircleCI orb documented in `docs/ci-integrations.md` pass them through. Renaming or removing a flag breaks those consumers — add new flags, keep old ones working.
+CLI flag names are a public interface: the CI integrations documented in `docs/ci-integrations.md` (GitHub Action `testnod/testnod-uploader`, CircleCI orb, Jenkins step, GitLab CI/CD component `gitlab.com/testnod/testnod-uploader`) pass them through. Renaming or removing a flag breaks those consumers — add new flags, keep old ones working.
 
 ## Releasing
 

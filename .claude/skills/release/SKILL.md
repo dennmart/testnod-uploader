@@ -46,7 +46,7 @@ Go through every gate. A **STOP** means: say why, suggest the fix, and end witho
   ```
   If that exits 0, only docs, CI config, CLAUDE.md, or `.claude/` changed. A new tag would republish the same binary under a new number, so say that and stop. (A Go toolchain bump in `go.mod` *does* count: it rebuilds with a new compiler and stdlib.)
 
-**Verification: STOP if any of these fail.** This mirrors `test.yml`:
+**Verification: STOP if any of these fail.** This mirrors `test.yml`, plus the cross-compile from `release.yml`:
 ```bash
 go vet ./... && go vet -tags debug ./...
 go test ./... && go test -tags debug ./...
@@ -57,14 +57,14 @@ done
 - Run CI on the exact commit when `gh` is available: `gh run list --workflow test.yml --commit "$(git rev-parse HEAD)" --limit 1`. STOP if it failed or is still running. If there's no run for this commit, or `gh` isn't available, treat it as a CONFIRM.
 
 **Risky content: CONFIRM each one that applies**
-- **CLI flag compatibility.** Diff the flag definitions: `git diff "$LAST"..HEAD -- cmd/testnod-uploader | grep -E '^[-+].*flag\.'`. The GitHub Action and CircleCI orb (`docs/ci-integrations.md`) pass flags by name. A removed or renamed flag, a changed default, or a newly required flag breaks consumers pulling `latest/`. List what changed and ask whether the Action/orb is ready. Recommend not releasing until it is.
+- **CLI flag compatibility.** Diff the flag definitions: `git diff "$LAST"..HEAD -- cmd/testnod-uploader | grep -E '^[-+].*flag\.'`. Every integration in `docs/ci-integrations.md` passes flags by name. A removed or renamed flag, a changed default, or a newly required flag breaks consumers pulling `latest/`. List what changed and ask whether those integrations are ready. Recommend not releasing until they are.
 - **Upload contract changes.** If the diff touches `internal/upload` or the request/response shapes, check it against the contract in CLAUDE.md: no extra headers on the S3 PUT, the same endpoints, and no `/finalize` call. If the change relies on a TestNod webapp change, ask whether that change is **deployed to production**. A binary that ships before its server side is ready will fail every upload.
 - **Release pipeline changed.** If `git diff --quiet "$LAST"..HEAD -- .github/workflows/release.yml` shows changes, this is the first run of the edited pipeline, and it writes to `latest/`. Summarize what changed and confirm.
 - **Toolchain bump.** If the `go` directive in `go.mod` changed, mention it. The release job uses `go-version-file`, so it needs `setup-go` to support that version.
 
 ## 3. Choose the version
 
-Tags are `vMAJOR.MINOR.PATCH` with no pre-release suffix. The project is pre-1.0 and so far every release has been a patch bump. Recommend a bump from the commits since `$LAST`:
+Tags are `vMAJOR.MINOR.PATCH` with no pre-release suffix. The project is pre-1.0. Recommend a bump from the commits since `$LAST`:
 - **patch**: bug fixes, internal changes, dependency or toolchain bumps.
 - **minor**: new flags or new user-visible behavior.
 - **major**: only if the user asks for it explicitly. Never go to 1.0.0 on your own.

@@ -55,14 +55,11 @@ pipeline {
 
 ## GitLab CI
 
+Use the [TestNod CI/CD component](https://gitlab.com/testnod/testnod-uploader). It reads the token from the `TESTNOD_TOKEN` CI/CD variable and uses `CI_PIPELINE_ID` as the build ID unless you set the `build-id` input.
+
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/testnod/testnod-uploader/main/gitlab/testnod.yml'
-
-upload_results:
-  extends: .testnod-upload
-  variables:
-    TESTNOD_TOKEN: $TESTNOD_TOKEN
-    TESTNOD_FILE: results.xml
-    TESTNOD_BUILD_ID: $CI_PIPELINE_ID
+  - component: gitlab.com/testnod/testnod-uploader/upload@2.1.0
+    inputs:
+      file: results.xml
 ```
