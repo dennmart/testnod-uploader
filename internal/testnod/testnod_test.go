@@ -2,6 +2,7 @@ package testnod
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -169,9 +170,13 @@ func TestCreateTestRun_Success(t *testing.T) {
 
 func setShortRetryDelay(t *testing.T) {
 	t.Helper()
-	original := retryDelay
+	original, originalRateLimit := retryDelay, rateLimitRetryDelay
 	retryDelay = 10 * time.Millisecond
-	t.Cleanup(func() { retryDelay = original })
+	rateLimitRetryDelay = 10 * time.Millisecond
+	t.Cleanup(func() {
+		retryDelay = original
+		rateLimitRetryDelay = originalRateLimit
+	})
 }
 
 func TestCreateTestRun_ServerError(t *testing.T) {
@@ -527,8 +532,136 @@ func TestCreateTestRun_ClientErrorNotRetried(t *testing.T) {
 	if !strings.Contains(err.Error(), "401 Unauthorized") {
 		t.Errorf("Expected error to contain '401 Unauthorized', got: %v", err)
 	}
+	if !strings.Contains(err.Error(), "Invalid token provided") {
+		t.Errorf("Expected error to contain the server's error_message, got: %v", err)
+	}
 	if attemptCount != 1 {
 		t.Errorf("Expected 1 attempt for a 4xx response, got %d", attemptCount)
+	}
+}
+
+func TestCreateTestRun_ForbiddenShowsMessageAndIsNotRetried(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{
+			name:    "organization paused",
+			message: "Uploads are paused for your organization because it went well over the Solo plan's limit of 250 test runs this month. They resume when the count resets on December 14. To resume sooner, an admin can upgrade to Team or contact TestNod support.",
+		},
+		{
+			name:    "project paused",
+			message: "This project is paused because the Solo plan includes 1 project and another project in your organization is active. To upload test runs here, upgrade to Team or have an admin make this the active project from its page in TestNod.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setShortRetryDelay(t)
+			attemptCount := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				attemptCount++
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error_message": tt.message})
+			}))
+			defer server.Close()
+
+			_, err := CreateTestRun(server.URL, "test-token", CreateTestRunRequest{})
+			if err == nil {
+				t.Fatal("CreateTestRun() expected error for 403 response")
+			}
+			want := "403 Forbidden: " + tt.message
+			if err.Error() != want {
+				t.Errorf("Error mismatch.\nGot:      %s\nExpected: %s", err.Error(), want)
+			}
+			if attemptCount != 1 {
+				t.Errorf("Expected 1 attempt for a 403 response, got %d", attemptCount)
+			}
+		})
+	}
+}
+
+func TestCreateTestRun_ErrorWithoutMessageFallsBack(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "empty body", body: ""},
+		{name: "non-JSON body", body: "<html>Bad Gateway</html>"},
+		{name: "JSON without error_message", body: `{"error":"nope"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setShortRetryDelay(t)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			_, err := CreateTestRun(server.URL, "test-token", CreateTestRunRequest{})
+			if err == nil {
+				t.Fatal("CreateTestRun() expected error for 404 response")
+			}
+			if want := "received non-OK response: 404 Not Found"; err.Error() != want {
+				t.Errorf("Expected %q, got %q", want, err.Error())
+			}
+		})
+	}
+}
+
+func TestCreateTestRun_ConflictIsRetried(t *testing.T) {
+	setShortRetryDelay(t)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount == 1 {
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"error_message":"Conflicting concurrent upload."}`))
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(SuccessfulServerResponse{
+			ID:           1,
+			TestRunID:    2,
+			UploadID:     3,
+			PresignedURL: "https://s3.amazonaws.com/upload",
+		})
+	}))
+	defer server.Close()
+
+	if _, err := CreateTestRun(server.URL, "test-token", CreateTestRunRequest{}); err != nil {
+		t.Fatalf("CreateTestRun() expected success after a 409, got: %v", err)
+	}
+	if attemptCount != 2 {
+		t.Errorf("Expected 2 attempts (409 then 201), got %d", attemptCount)
+	}
+}
+
+func TestRetryDelayFor(t *testing.T) {
+	setShortRetryDelay(t)
+	retryDelay = 1 * time.Second
+	rateLimitRetryDelay = 5 * time.Second
+
+	tests := []struct {
+		name string
+		err  error
+		want time.Duration
+	}{
+		{name: "rate limited", err: &StatusError{StatusCode: http.StatusTooManyRequests}, want: 5 * time.Second},
+		{name: "server error", err: &StatusError{StatusCode: http.StatusInternalServerError}, want: 1 * time.Second},
+		{name: "conflict", err: &StatusError{StatusCode: http.StatusConflict}, want: 1 * time.Second},
+		{name: "network error", err: errors.New("connection refused"), want: 1 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := retryDelayFor(1, tt.err, nil); got != tt.want {
+				t.Errorf("retryDelayFor() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -616,6 +749,7 @@ func TestNotifyUploadFailure_ClientErrorNotRetried(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attemptCount++
 		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error_message":"Invalid token provided"}`))
 	}))
 	defer server.Close()
 
@@ -625,6 +759,9 @@ func TestNotifyUploadFailure_ClientErrorNotRetried(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "401 Unauthorized") {
 		t.Errorf("Expected error to contain '401 Unauthorized', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Invalid token provided") {
+		t.Errorf("Expected error to contain the server's error_message, got: %v", err)
 	}
 	if attemptCount != 1 {
 		t.Errorf("Expected 1 attempt for a 4xx response, got %d", attemptCount)

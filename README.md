@@ -70,6 +70,25 @@ Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are attached 
 |----------|-------------|
 | `TESTNOD_BASE_URL` | Override the TestNod API base URL (defaults to `https://testnod.com`) |
 
+## Errors and Exit Codes
+
+The uploader exits with `1` when validation or the upload fails, and `0` on success. With `-ignore-failures` it always exits `0`, so a TestNod problem never fails your CI job.
+
+When the TestNod API rejects a request, the uploader prints the reason TestNod gives, for example:
+
+```
+Error creating test run on TestNod: 403 Forbidden: This project is paused because the Solo plan includes 1 project and another project in your organization is active. ...
+```
+
+| Status | Meaning | Retried? |
+|--------|---------|----------|
+| `403` | Uploads are paused for this organization (well over the plan's monthly limit) or this project (inactive project on the Solo plan). Nothing is recorded. Uploads resume when the monthly count resets or an admin upgrades or makes the project active. In sharded builds, every shard gets the `403`. See [troubleshooting](https://testnod.com/docs/sending-test-results/troubleshooting#i-get-a-403-from-the-upload-endpoint). | No |
+| `404` | The project token is wrong or doesn't match a project. | No |
+| `409` | Two shards of the same build raced to create the test run. | Yes |
+| `422` | The request was invalid, for example a missing build ID. | No |
+| `429` | Rate limited (120 requests a minute per project token). | Yes, after 5 seconds |
+| `5xx` | TestNod server error. | Yes |
+
 ## Supported JUnit XML Formats
 
 The validator accepts XML files with either a `<testsuite>` or `<testsuites>` root element, covering output from most test frameworks including JUnit, Gradle, Maven Surefire, and pytest.
@@ -108,7 +127,7 @@ go test ./cmd/testnod-uploader -run TestParseFlags
 4. PUT the XML file to the presigned URL with `Content-Type: application/xml` — the object metadata is encoded in the URL's query string by the presigner, so no extra headers are needed
 5. If the PUT fails, notify TestNod via the per-upload failure callback (`/integrations/test_runs/upload_failed`) so the upload row is marked failed without poisoning the whole run
 
-Both API and upload steps retry up to 3 times with a 1-second delay between attempts.
+Both API and upload steps make up to 3 attempts with a 1-second delay between them (5 seconds after a `429` rate limit response). API responses in the 4xx range other than `409` and `429` are not retried, since they won't succeed until something changes, and the uploader stops without uploading the file. See [Errors and Exit Codes](#errors-and-exit-codes).
 
 ## CI/CD
 

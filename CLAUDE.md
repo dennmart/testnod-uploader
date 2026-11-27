@@ -21,9 +21,10 @@ go test ./cmd/testnod-uploader -run TestParseFlags
 2. `PUT` the file to the presigned URL with `Content-Type: application/xml` and **no other headers**. The object metadata is already hoisted into the URL query string by the presigner; adding headers (e.g. `x-amz-meta-*`) breaks the signature.
 3. On upload failure, `POST /integrations/test_runs/upload_failed` with `{test_run_id, upload_id, failure_message}` and the same `Project-Token`.
 
+- Error responses carry `{"error_message": "..."}`; the client prints it. `upload` returns `403` when the organization or project is paused by plan limits. Never retry it or match on its text, and never PUT or call `upload_failed` after it (there are no IDs).
 - `project_id` in the `upload` response is a UUID string; `id`, `test_run_id`, and `upload_id` are integers.
 - The request body is JSON. The server also accepts multipart, which is what the public docs show for curl.
-- Both API calls and the S3 PUT retry 3× with a 1s delay.
+- Both API calls and the S3 PUT make 3 attempts with a 1s delay (5s after a `429`). API 4xx responses are not retried except `409` (concurrent shards racing to create the run) and `429`.
 - `-build-id` is required outside `-validate` mode. It groups parallel/matrix shards into one logical test run server-side.
 - This binary owns per-upload state only. Run-level finalization (`/integrations/test_runs/finalize`) is the webapp's job and is called separately from CI — never add it here.
 

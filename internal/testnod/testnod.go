@@ -3,7 +3,9 @@ package testnod
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -47,7 +49,50 @@ const retryAttempts = 3
 var (
 	httpClient = &http.Client{Timeout: 30 * time.Second}
 	retryDelay = 1 * time.Second
+	// TestNod's rate limit is per minute, so a 1s wait rarely clears it. The
+	// submission API docs recommend waiting a few seconds before retrying.
+	rateLimitRetryDelay = 5 * time.Second
 )
+
+// StatusError is a non-success HTTP response from the TestNod API. Message is
+// the server's error_message, when the body had one.
+type StatusError struct {
+	StatusCode int
+	Status     string
+	Message    string
+}
+
+func (e *StatusError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("%s: %s", e.Status, e.Message)
+	}
+	return fmt.Sprintf("received non-OK response: %s", e.Status)
+}
+
+// newStatusError reads the TestNod error body ({"error_message": "..."}) from
+// resp so the reason (e.g. a paused organization or project) reaches the CI log.
+// The caller still owns closing resp.Body.
+func newStatusError(resp *http.Response) *StatusError {
+	statusErr := &StatusError{StatusCode: resp.StatusCode, Status: resp.Status}
+
+	var body struct {
+		ErrorMessage string `json:"error_message"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body); err == nil {
+		statusErr.Message = body.ErrorMessage
+	}
+
+	return statusErr
+}
+
+// retryDelayFor waits longer after a 429 than after other retryable errors.
+func retryDelayFor(_ uint, err error, _ retry.DelayContext) time.Duration {
+	var statusErr *StatusError
+	if errors.As(err, &statusErr) && statusErr.StatusCode == http.StatusTooManyRequests {
+		return rateLimitRetryDelay
+	}
+	return retryDelay
+}
 
 func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTestRunRequest) (SuccessfulServerResponse, error) {
 	requestBodyBytes, err := json.Marshal(requestBody)
@@ -58,8 +103,7 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 	var resp *http.Response
 
 	err = retry.New(
-		retry.Delay(retryDelay),
-		retry.DelayType(retry.FixedDelay),
+		retry.DelayType(retryDelayFor),
 		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {
@@ -85,10 +129,16 @@ func CreateTestRun(uploadURL string, projectToken string, requestBody CreateTest
 			debug.Log("response: status=%d", resp.StatusCode)
 
 			if resp.StatusCode != http.StatusCreated {
+				statusErr := newStatusError(resp)
 				resp.Body.Close()
-				statusErr := fmt.Errorf("received non-OK response: %s", resp.Status)
 
-				if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+				// 4xx responses won't change on retry (bad token, missing build ID,
+				// paused organization or project), except a rate limit and a 409,
+				// which TestNod returns when two shards of the same build race to
+				// create the test run.
+				if resp.StatusCode >= 400 && resp.StatusCode < 500 &&
+					resp.StatusCode != http.StatusTooManyRequests &&
+					resp.StatusCode != http.StatusConflict {
 					return retry.Unrecoverable(statusErr)
 				}
 
@@ -144,8 +194,7 @@ func NotifyUploadFailure(baseURL string, projectToken string, uploadID int, test
 	}
 
 	err = retry.New(
-		retry.Delay(retryDelay),
-		retry.DelayType(retry.FixedDelay),
+		retry.DelayType(retryDelayFor),
 		retry.Attempts(retryAttempts),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(attempt uint, err error) {
@@ -173,7 +222,7 @@ func NotifyUploadFailure(baseURL string, projectToken string, uploadID int, test
 			debug.Log("response: status=%d", resp.StatusCode)
 
 			if resp.StatusCode != http.StatusOK {
-				statusErr := fmt.Errorf("received non-OK response: %s", resp.Status)
+				statusErr := newStatusError(resp)
 
 				if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
 					return retry.Unrecoverable(statusErr)
